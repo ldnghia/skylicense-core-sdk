@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 2 * * *"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :core:compileAndroidMain :core:testAndroidHostTest :core:compileKotlinMingwX64 --stacktrace
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :core:iosSimulatorArm64Test --stacktrace
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew.bat :core:mingwX64Test :core:linkReleaseSharedMingwX64 --stacktrace
+      - name: C ABI smoke test
+        shell: pwsh
+        run: samples/windows-c-smoke/build-c-smoke.ps1
+
+  # Runs on main pushes and nightly only - not PR-blocking, since it needs a shared dev/staging
+  # skyapp-api instance (device-slot fixtures are stateful and shared across runs). Skips (not
+  # fails) when LICENSE_IT_BASE_URL isn't set - only fails when configured yet unreachable.
+  integration:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'schedule'
+    runs-on: windows-latest
+    concurrency:
+      group: license-it
+      cancel-in-progress: false
+    env:
+      LICENSE_IT_BASE_URL: ${{ secrets.LICENSE_IT_BASE_URL }}
+      LICENSE_IT_ORG_ID: ${{ secrets.LICENSE_IT_ORG_ID }}
+      LICENSE_IT_STORE_ID: ${{ secrets.LICENSE_IT_STORE_ID }}
+      LICENSE_IT_APP_ID: ${{ secrets.LICENSE_IT_APP_ID }}
+      LICENSE_IT_LICENSE_KEY: ${{ secrets.LICENSE_IT_LICENSE_KEY }}
+      LICENSE_IT_INACTIVE_LICENSE_KEY: ${{ secrets.LICENSE_IT_INACTIVE_LICENSE_KEY }}
+      LICENSE_IT_EXPIRED_LICENSE_KEY: ${{ secrets.LICENSE_IT_EXPIRED_LICENSE_KEY }}
+      LICENSE_IT_SIGNING_KEY_KID: ${{ secrets.LICENSE_IT_SIGNING_KEY_KID }}
+      LICENSE_IT_SIGNING_KEY_PEM: ${{ secrets.LICENSE_IT_SIGNING_KEY_PEM }}
+      LICENSE_IT_RUN_ID: ${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew.bat :integration-tests:mingwX64Test --stacktrace
