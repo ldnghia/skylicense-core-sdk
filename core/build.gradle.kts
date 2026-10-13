@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.android.kotlin.multiplatform.library)
+    alias(libs.plugins.kover)
 }
 
 group = providers.gradleProperty("GROUP").get()
@@ -65,6 +66,28 @@ kotlin {
         mingwX64Main.dependencies {
             implementation(libs.ktor.client.winhttp)
             implementation(libs.cryptography.provider.openssl3.prebuilt)
+        }
+    }
+}
+
+// Phase 8 success criterion: commonMain line coverage >= 85%, enforced in CI
+// (`./gradlew :core:koverVerify`). Only reflects whichever test tasks actually ran on the host
+// (e.g. mingwX64Test-only in this dev environment) - CI runs all 3 targets' tests first so the
+// merged report is complete.
+kover {
+    reports {
+        filters {
+            excludes {
+                annotatedBy("kotlin.Deprecated")
+            }
+        }
+        verify {
+            rule("commonMain line coverage") {
+                bound {
+                    minValue = 85
+                    coverageUnits.set(kotlinx.kover.gradle.plugin.dsl.CoverageUnit.LINE)
+                }
+            }
         }
     }
 }

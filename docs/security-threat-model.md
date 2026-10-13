@@ -90,3 +90,42 @@ token's `did` claim is checked against the new device's own hashed id and reject
   Documented as a backend owner's responsibility.
 - **No JWKS/public-key endpoint**: key rotation is a manual, deploy-ordered process (see above),
   not something the SDK can self-serve.
+
+## Security scan (Phase 7, run 2026-10-13)
+
+Manual scan of `core/src/**/kotlin` for secrets, dependency risk, logging redaction, crypto
+verification correctness, insecure storage, and general OWASP-relevant issues (no automated SAST
+tool available in this environment - network-restricted sandbox, no SDK/macOS). No
+critical/high findings.
+
+- **Secrets**: none hardcoded. The only match for key/token-shaped strings is the intentional test
+  sentinel `"SECRET-LICENSE-KEY-SHOULD-NEVER-APPEAR-IN-LOGS"` in `LogRedactionTest.kt`.
+- **Dependencies**: Kotlin 2.4.21, AGP 9.4.1, Ktor 3.6.0, kotlinx-coroutines/serialization 1.11.0,
+  cryptography-kotlin 0.6.0, androidx-core-ktx 1.19.1 - all current stable releases, none
+  abandoned/known-malicious.
+- **Logging**: no call site logs `licenseKey`/`licenseToken`. `LogRedactionTest.kt` covers the
+  `verify()` transport-error path for real (`LicenseApiService.kt`'s `e.message ?: "network error"`
+  construction); `introspect`/`release`/`find` share the same helper so are covered too, but there
+  is no test asserting `BusinessError.message` (server-controlled) never echoes a secret - low
+  risk since the SDK never interpolates secrets into any string, but worth a follow-up test.
+- **Crypto** (`LicenseTokenVerifier.kt`): algorithm is hardcoded to ES256 regardless of the JWT
+  header's `alg` (the header is only read for `kid`) - no algorithm-confusion/`alg:none`
+  acceptance. Signature is verified before any claim is trusted; unknown `kid` is rejected;
+  issuer, `did`, `nbf`/`exp` (with bounded skew) are all checked. No findings.
+- **Storage**: Android Keystore AES-256-GCM (non-exportable key, random IV, wipes on
+  decrypt/crypto failure) and iOS Keychain (`...AfterFirstUnlockThisDeviceOnly`) both reviewed, no
+  insecure flags. Windows `DpapiFileStore` (reviewed in this pass, previously not located):
+  user-scope `CryptProtectData`/`CryptUnprotectData` (not machine-scope), `CRYPTPROTECT_UI_FORBIDDEN`
+  set, entropy scoped to the app salt hash - no findings.
+- **OWASP-relevant**: no SQL/shell/dynamic-code injection, no insecure deserialization (JSON only,
+  `kotlinx.serialization` with `ignoreUnknownKeys`), no reflection-based instantiation from network
+  data.
+  - **Fixed in this pass**: `LicenseConfig.baseUrl` previously accepted any scheme with no
+    enforcement - a misconfigured integration could silently send license/device traffic over
+    plaintext HTTP. `LicenseConfig` now requires `https://` (loopback `http://localhost` /
+    `http://127.0.0.1` still allowed, for local dev/integration-test use against a local backend).
+  - **Tracked, not fixed here**: `core/build.gradle.kts`'s Android target doesn't yet wire
+    `consumer-rules.pro` into the AGP 9 KMP `android {}` DSL (the right API wasn't found - no
+    Android SDK/docs access in this session to confirm it) - R8 may strip
+    `kotlinx.serialization`'s generated serializers in a release AAR until this is resolved.
+    Functional/correctness risk on release builds, not an active vulnerability pre-release.

@@ -15,4 +15,12 @@ public class LicenseConfig(
     public val certificatePins: Map<String, List<String>> = emptyMap(),
 ) {
     public val normalizedBaseUrl: String = baseUrl.trimEnd('/')
+
+    init {
+        val isLoopback = normalizedBaseUrl.startsWith("http://localhost") ||
+            normalizedBaseUrl.startsWith("http://127.0.0.1")
+        require(normalizedBaseUrl.startsWith("https://") || isLoopback) {
+            "baseUrl must use https:// (plaintext http only allowed against localhost for local dev): $baseUrl"
+        }
+    }
 }

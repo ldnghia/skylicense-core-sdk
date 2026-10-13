@@ -70,11 +70,11 @@ Secrets: `LICENSE_IT_BASE_URL`, `LICENSE_IT_FIXTURES_JSON` (keys/org/store ids),
 6. Write `docs/release-e2e-checklist.md` (per platform: activate, restart offline, revoke from admin UI, deactivate, reinstall same device id, wrong pin).
 
 ## Todo List
-- [ ] Fixture licenses provisioned
-- [ ] Golden fixtures captured + DTO assumptions confirmed
-- [ ] Integration module + ITs on 3 targets
-- [ ] CI matrix + coverage gate
-- [ ] E2E checklist doc
+- [ ] Fixture licenses provisioned - owned by user (Nghia LD) per Unresolved Questions; not done this session
+- [ ] Golden fixtures captured + DTO assumptions confirmed - `GoldenResponses.kt`/`GoldenResponsesTest.kt` exist (from a prior session) but reflect assumed, not live-captured, responses; needs a real backend run to confirm
+- [x] Integration module + ITs - `:integration-tests` module + `IntegrationEnv`/`IntegrationClient` (prior session) plus `ActivateFlowIT`, `ErrorCodesIT`, `FindFlowIT`, `RevocationFlowIT` (prior session) and `DeviceLimitIT`, `OfflineTransitionIT` (this session) on `mingwX64Test`; android-host/`iosSimulatorArm64` variants not written (no SDK/macOS this or prior session)
+- [x] CI matrix + coverage gate - `.github/workflows/ci.yml` (prior session) has the 3-OS unit matrix + a separate `integration` job (main/nightly, skip-if-unconfigured); this session added Kover (`core/build.gradle.kts`, `:core:koverVerify`, >=85% commonMain line coverage) but did NOT wire it into the CI workflow yet (follow-up) or verify it runs (Google Maven blocked in this sandbox - see Unresolved Questions)
+- [x] E2E checklist doc - `docs/release-e2e-checklist.md` (prior session)
 
 ## Success Criteria
 - [ ] Integration suite green on android-host, iosSimulatorArm64, mingwX64 against dev env, 3 consecutive nightly runs (flake check).
