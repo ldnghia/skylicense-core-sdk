@@ -1,7 +1,7 @@
 ---
 phase: 9
 title: "Packaging and Distribution"
-status: pending
+status: partial
 priority: P2
 effort: "3d"
 dependencies: [8]
@@ -57,17 +57,17 @@ tag vX.Y.Z -> release.yml
 7. Rehearse: `v0.1.0-rc.1` end to end.
 
 ## Todo List
-- [ ] Maven publication + local consumption test
-- [ ] XCFramework zip + SwiftPM consumption test
-- [ ] Windows zip (+ import lib, signing) consumption test
-- [ ] NuGet package
-- [ ] release.yml + release-process doc
-- [ ] RC rehearsal
+- [x] Maven publication - `maven-publish` + GitHub Packages repo + POM wired in `core/build.gradle.kts`; **local consumption test NOT run** (sandbox network policy blocks Google Maven entirely, can't even resolve the AGP plugin to configure the project - see Phase 8's same blocker)
+- [x] XCFramework zip + SwiftPM manifest - `scripts/package-ios-xcframework.sh` + root `Package.swift` (placeholder version/checksum, patched by `release.yml`); **consumption test NOT run** (no macOS host)
+- [x] Windows zip (+ import lib, signing) - `scripts/package-windows-dll.ps1` + `packaging/windows/licensecore.def` (hand-maintained, see its own comment) + `packaging/windows/README-windows.txt`; **consumption test NOT run** (no Windows host, no signing cert)
+- [x] NuGet package - `packaging/nuget/LicenseCore.Native.nuspec`; not packed/pushed for real
+- [x] release.yml + release-process doc - `.github/workflows/release.yml`, `docs/release-process.md`; **never run** - written from the plan + existing code, not verified against a real tag push
+- [ ] RC rehearsal - not done; needs a real GitHub Actions run (3 OS runners, secrets, registries), none reachable from this session
 
 ## Success Criteria
-- [ ] `v0.1.0-rc.1` tag produces all artifacts with zero manual steps (besides approvals).
-- [ ] Fresh Android app, fresh Xcode project (SwiftPM URL), fresh .NET app each integrate from published artifacts and activate against dev backend.
-- [ ] `SHA256SUMS.txt` matches artifacts; DLL signature valid (`signtool verify /pa`) if cert available.
+- [ ] `v0.1.0-rc.1` tag produces all artifacts with zero manual steps (besides approvals) - workflow written, not run.
+- [ ] Fresh Android app, fresh Xcode project (SwiftPM URL), fresh .NET app each integrate from published artifacts and activate against dev backend - not attempted.
+- [ ] `SHA256SUMS.txt` matches artifacts; DLL signature valid (`signtool verify /pa`) if cert available - mechanics written into `release.yml`/scripts, not exercised.
 
 ## Risk Assessment
 | Risk | L x I | Mitigation |

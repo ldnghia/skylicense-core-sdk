@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.kover)
+    `maven-publish`
 }
 
 group = providers.gradleProperty("GROUP").get()
@@ -87,6 +88,47 @@ kover {
                     minValue = 85
                     coverageUnits.set(kotlinx.kover.gradle.plugin.dsl.CoverageUnit.LINE)
                 }
+            }
+        }
+    }
+}
+
+// Phase 9: one Maven publication (root metadata + `-android` AAR + native klibs - the klibs are
+// unused by consumers but harmless, see Phase 9 Key Insights) to GitHub Packages. Credentials come
+// from env so nothing's in source; `publish` is only ever invoked from the tag-triggered
+// `release.yml` workflow (Phase 9), never locally with real creds. `./gradlew publishToMavenLocal`
+// works with no credentials for the local-consumption rehearsal in Phase 9's Implementation Steps.
+publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/ldnghia/skylicense-core-sdk")
+            credentials {
+                username = providers.environmentVariable("GITHUB_ACTOR").orNull
+                password = providers.environmentVariable("GITHUB_TOKEN").orNull
+            }
+        }
+    }
+    publications.withType<MavenPublication>().configureEach {
+        pom {
+            name.set("LicenseCore SDK")
+            description.set(
+                "Kotlin Multiplatform client SDK (Android, iOS, Windows) for skyapp-api license " +
+                    "verification, token caching, offline grace, and revocation.",
+            )
+            url.set("https://github.com/ldnghia/skylicense-core-sdk")
+            licenses {
+                license {
+                    // Private/internal distribution only (Phase 9 Unresolved Questions,
+                    // confirmed 2026-10-12) - not a public open-source license grant, this POM
+                    // field is required by Maven tooling regardless of distribution scope.
+                    name.set("Proprietary")
+                    url.set("https://github.com/ldnghia/skylicense-core-sdk/blob/main/README.md")
+                }
+            }
+            scm {
+                url.set("https://github.com/ldnghia/skylicense-core-sdk")
+                connection.set("scm:git:https://github.com/ldnghia/skylicense-core-sdk.git")
             }
         }
     }

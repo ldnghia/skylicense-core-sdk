@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  LicenseCore.Native - win-x64 native package (Phase 9). Carries only licensecore.dll under
+  runtimes/win-x64/native/ so .NET Framework and .NET 6+ consumers (confirmed target stacks, see
+  Phase 9 Confirmed Decisions) get the DLL copied to their output directory automatically via
+  NuGet's runtime-asset convention, with no managed wrapper assembly - consumers P/Invoke directly
+  against licensecore.dll using include/licensecore.h's signatures (see README-windows.txt).
+  $version$ is substituted by `nuget pack -Version` in release.yml; never pack this by hand with a
+  stale version.
+-->
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>LicenseCore.Native.win-x64</id>
+    <version>$version$</version>
+    <authors>dcorp</authors>
+    <description>
+      Native win-x64 binary (licensecore.dll) for the LicenseCore license-verification SDK.
+      Internal/private distribution only - see https://github.com/ldnghia/skylicense-core-sdk.
+      P/Invoke against include/licensecore.h's C ABI (also included under contentFiles).
+    </description>
+    <repository type="git" url="https://github.com/ldnghia/skylicense-core-sdk" />
+    <tags>native licensing win-x64</tags>
+  </metadata>
+  <files>
+    <file src="..\..\build\packaging\windows\licensecore.dll" target="runtimes\win-x64\native\licensecore.dll" />
+    <file src="..\..\include\licensecore.h" target="contentFiles\any\any\licensecore.h" />
+  </files>
+</package>

@@ -1,0 +1,25 @@
+; LicenseCore Windows x64 import-library definition.
+;
+; Hand-maintained (not generated) so it stays stable across Kotlin/Native compiler versions -
+; the symbol list is just the C ABI in include/licensecore.h, which only changes on a deliberate
+; ABI bump (see lc_abi_version there). `lib.exe /def:licensecore.def /machine:x64` (Phase 9) turns
+; this into licensecore.lib for MSVC consumers to link against; MinGW consumers link the DLL
+; directly and don't need this file. Keep this list in sync with licensecore.h by hand - there is
+; no automated check in this repo yet (tracked as a Phase 9 follow-up: diff the two at release
+; time instead of trusting memory).
+LIBRARY licensecore
+EXPORTS
+    lc_create
+    lc_activate
+    lc_activate_for_store
+    lc_import_offline_token
+    lc_check_now
+    lc_get_state
+    lc_deactivate
+    lc_device_id
+    lc_start
+    lc_stop
+    lc_last_error
+    lc_free_string
+    lc_destroy
+    lc_abi_version

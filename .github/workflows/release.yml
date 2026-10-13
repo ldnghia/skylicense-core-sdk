@@ -1,0 +1,122 @@
+name: Release
+
+# Phase 9: tag-triggered release. See docs/release-process.md for the full narrative - this
+# workflow was written without ever being run (no CI secrets, no signing certs, no network access
+# to registries from this dev sandbox); the first real tag push is the actual rehearsal.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  maven:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :core:publish
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  ios:
+    runs-on: macos-latest
+    outputs:
+      checksum: ${{ steps.package.outputs.checksum }}
+      zip_name: ${{ steps.package.outputs.zip_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :core:assembleLicenseCoreReleaseXCFramework
+      - name: Import Apple Distribution identity (if configured)
+        if: ${{ secrets.APPLE_DISTRIBUTION_IDENTITY != '' }}
+        run: echo "APPLE_IDENTITY=${{ secrets.APPLE_DISTRIBUTION_IDENTITY }}" >> "$GITHUB_ENV"
+      - id: package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          ./scripts/package-ios-xcframework.sh "$version" "${APPLE_IDENTITY:-}"
+      - name: Update and commit Package.swift
+        run: |
+          version="${{ steps.package.outputs.version }}"
+          checksum="${{ steps.package.outputs.checksum }}"
+          sed -i '' "s#^let version = .*#let version = \"$version\"#" Package.swift
+          sed -i '' "s#^let checksum = .*#let checksum = \"$checksum\"#" Package.swift
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Package.swift
+          git commit -m "Package.swift: $GITHUB_REF_NAME ($checksum)"
+          git push origin HEAD:main
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-xcframework
+          path: LicenseCore.xcframework.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew.bat :core:linkReleaseSharedMingwX64
+      - name: Package + sign (if cert configured)
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          $thumb = "${{ secrets.WINDOWS_CODESIGN_THUMBPRINT }}"
+          if ($thumb) {
+            ./scripts/package-windows-dll.ps1 -Version $version -SignToolThumbprint $thumb
+          } else {
+            ./scripts/package-windows-dll.ps1 -Version $version
+          }
+      - name: nuget pack
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          nuget pack packaging\nuget\LicenseCore.Native.nuspec -Version $version -OutputDirectory build\packaging\nuget
+      - name: nuget push (GitHub Packages)
+        shell: pwsh
+        run: |
+          nuget sources add -Name github -Source "https://nuget.pkg.github.com/ldnghia/index.json" -Username ${{ github.actor }} -Password ${{ secrets.GITHUB_TOKEN }}
+          nuget push build\packaging\nuget\*.nupkg -Source github -ApiKey ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: licensecore-win-x64-*.zip
+
+  finalize:
+    needs: [maven, ios, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Compute SHA256SUMS.txt
+        run: |
+          cd artifacts
+          find . -type f \( -name "*.zip" \) -exec sha256sum {} \; | sed 's#\./[^/]*/##' > ../SHA256SUMS.txt
+          cat ../SHA256SUMS.txt
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/ios-xcframework/LicenseCore.xcframework.zip
+            artifacts/windows-zip/licensecore-win-x64-*.zip
+            SHA256SUMS.txt
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-rc.') }}
