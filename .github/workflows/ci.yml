@@ -21,7 +21,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :core:compileAndroidMain :core:testAndroidHostTest :core:compileKotlinMingwX64 --stacktrace
+      - run: ./gradlew :core:compileAndroidMain :core:testAndroidHostTest :core:compileKotlinMingwX64 :core:koverVerify --stacktrace
 
   macos:
     runs-on: macos-latest

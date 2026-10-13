@@ -79,13 +79,13 @@ Pin failure -> transport error -> same path as offline (grace bounded by token e
 - [x] Storage review checklist - in the threat model doc; Android backup-exclusion item flagged as not yet verified (Phase 3 follow-up, non-blocking per the `did`-claim mitigation)
 - [x] Log redaction test - `LogRedactionTest.kt`, real run on mingwX64
 - [x] Dependency verification enabled - `gradle/verification-metadata.xml` generated for real via `--write-verification-metadata sha256`, confirmed a clean rebuild still succeeds with verification on. **Gap**: only covers dependencies resolved on this machine (mingwX64 + plugin classpath) - Android/iOS dependencies were never resolved here (no SDK/macOS) and are NOT in this metadata yet; will need regenerating (additively) the first time someone builds those targets on a capable machine.
-- [ ] Security scan (`/ck:security-scan` or equivalent) - not run this session
+- [x] Security scan - manual scan (no SAST tool available, network-restricted sandbox) of `core/src/**/kotlin` for secrets/deps/logging/crypto/storage/OWASP, documented in `docs/security-threat-model.md`. No critical/high findings. Fixed one low-severity gap (`LicenseConfig.baseUrl` now requires `https://`); one low-severity item tracked, not fixed (`consumer-rules.pro` not wired into AGP 9 KMP `android {}` DSL - needs Android SDK/docs access this session lacked).
 
 ## Success Criteria
 - [ ] Wrong pin on Android/iOS -> request fails - code written, not tested (no SDK/macOS to run instrumented/XCTest).
 - [x] Windows decision + rationale in `docs/security-threat-model.md` - done, with a real (not guessed) spike finding.
 - [x] Revocation/clock edge-case tests green - on mingwX64 (the only target buildable here); 59/59 tests passing total after this phase's additions.
-- [ ] Security scan: 0 high/critical findings - not run.
+- [x] Security scan: 0 high/critical findings - done (see Todo List entry above).
 
 ## Risk Assessment
 | Risk | L x I | Mitigation |

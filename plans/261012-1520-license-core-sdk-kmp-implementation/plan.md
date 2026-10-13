@@ -30,10 +30,10 @@ Locked decisions (PM, 2026-10-12, not reopened): KMP not Rust; targets = Android
 | 4 | [iOS Target and XCFramework](./phase-04-ios-target-and-xcframework.md) | Partial - code written, zero compiler feedback (no macOS host) | 3d | 2 |
 | 5 | [Windows mingwX64 DLL](./phase-05-windows-mingwx64-dll.md) | Done | 4d | 2 |
 | 6 | [License Agent x86 Helper (Deferred)](./phase-06-license-agent-x86-helper-deferred.md) | Deferred - not in scope yet | - | 5 |
-| 7 | [Security Hardening](./phase-07-security-hardening.md) | Partial - Windows pinning resolved for real; Android/iOS pinning unverified; scan not run | 3d | 3,4,5 |
-| 8 | [Integration Testing and CI Matrix](./phase-08-integration-testing-and-ci-matrix.md) | Pending | 3d | 7 |
-| 9 | [Packaging and Distribution](./phase-09-packaging-and-distribution.md) | Pending | 3d | 8 |
-| 10 | [SDK Integration Docs](./phase-10-sdk-integration-docs.md) | Pending | 2d | 8 (parallel w/ 9) |
+| 7 | [Security Hardening](./phase-07-security-hardening.md) | Partial - Windows pinning resolved for real; Android/iOS pinning code written but unverified (no SDK/macOS); manual security scan done, 0 high/critical | 3d | 3,4,5 |
+| 8 | [Integration Testing and CI Matrix](./phase-08-integration-testing-and-ci-matrix.md) | Partial - IT module/CI matrix/golden fixtures/checklist already existed from a prior session; this session added DeviceLimitIT, OfflineTransitionIT, Kover coverage gate; nothing could be built/run here (Google Maven blocked by sandbox network policy) | 3d | 7 |
+| 9 | [Packaging and Distribution](./phase-09-packaging-and-distribution.md) | Partial - all config/scripts/workflow/docs written (Maven publish, iOS/Windows packaging scripts, NuGet nuspec, release.yml, release-process.md); nothing run for real (no reachable registries/hosts/certs this session); RC rehearsal still open | 3d | 8 |
+| 10 | [SDK Integration Docs](./phase-10-sdk-integration-docs.md) | Partial - full doc set written (architecture, lifecycle, per-platform guides, error reference, ops runbook, roadmap, changelog, README index); Android/iOS guides honestly flagged as unverified (no sample apps, no SDK/macOS); fresh-dev dry-run not attempted (no RC artifacts yet) | 2d | 8 (parallel w/ 9) |
 
 Parallel windows: {3,4,5} after 2; {9,10} after 8. File ownership per phase listed in each phase file; `core/build.gradle.kts` + `gradle/libs.versions.toml` are single-owner (lead) during parallel windows.
 
