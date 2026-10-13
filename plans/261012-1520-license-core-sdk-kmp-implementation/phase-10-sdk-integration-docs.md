@@ -1,7 +1,7 @@
 ---
 phase: 10
 title: "SDK Integration Docs"
-status: pending
+status: partial
 priority: P2
 effort: "2d"
 dependencies: [8]
@@ -54,17 +54,17 @@ docs/code-standards.md                      # update (created Phase 1)
 6. Doc review: one dev per platform follows guide from scratch against RC artifacts; fix gaps.
 
 ## Todo List
-- [ ] Architecture + lifecycle docs
-- [ ] Android / iOS / Windows guides
-- [ ] Error reference
-- [ ] Ops runbook
-- [ ] Roadmap + changelog + README
-- [ ] Dry-run integration by fresh dev per platform
+- [x] Architecture + lifecycle docs - `docs/system-architecture.md`, `docs/license-lifecycle-and-offline-grace.md` (with Mermaid state diagram), written from actual source (`LicenseState.kt`, `LicenseRecheckLogic.kt`, `OfflineGracePolicy.kt`, `ClockRollbackGuard.kt`)
+- [x] Android / iOS / Windows guides - all three written; Android/iOS guides explicitly flag every snippet as unverified (no SDK/macOS host, no sample app to link real snippets from - unlike Windows); Windows guide links the real, CI-run `samples/windows-c-smoke/main.c`
+- [x] Error reference - `docs/error-codes-reference.md`, cross-checked against `LicenseErrorMapping.kt`
+- [x] Ops runbook - `docs/ops-signing-keys-and-pins-runbook.md` (signing-key rotation, pin rotation, both with the deploy order that avoids an outage)
+- [x] Roadmap + changelog + README - `docs/project-roadmap.md`, `docs/project-changelog.md`, README.md updated with a docs index
+- [ ] Dry-run integration by fresh dev per platform - not done; needs a real Android SDK, macOS host, and RC artifacts, none available this session
 
 ## Success Criteria
-- [ ] 3 fresh-dev dry runs succeed in <= 1h each using RC artifacts.
-- [ ] Every snippet maps to code in `samples/` (link present).
-- [ ] Platform support matrix states x86 (deferred) and ARM64 (unsupported) explicitly.
+- [ ] 3 fresh-dev dry runs succeed in <= 1h each using RC artifacts - not attempted (no RC artifacts exist yet; Phase 9's RC rehearsal is itself still open).
+- [ ] Every snippet maps to code in `samples/` - true for Windows (links `samples/windows-c-smoke/main.c`); **not true** for Android/iOS, since no sample app exists for either yet - documented honestly in each guide's status caveat rather than fabricating a link.
+- [x] Platform support matrix states x86 (deferred) and ARM64 (unsupported) explicitly - in README.md, `docs/integration-guide-windows.md`, and `docs/project-roadmap.md`.
 
 ## Risk Assessment
 | Risk | L x I | Mitigation |
