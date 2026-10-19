@@ -69,7 +69,18 @@ public fun lcActivate(handle: COpaquePointer?, licenseKey: CPointer<ByteVar>?): 
 public fun lcActivateForStore(handle: COpaquePointer?, requestJson: CPointer<ByteVar>?): CPointer<ByteVar>? = guarded(handle) { client ->
     val json = requestJson.toKotlinStringOrNull() ?: error("request_json is null")
     val req = capiJson.decodeFromString<CApiActivateForStoreRequestDto>(json)
-    runBlocking { client.activateForStore(req.storeId, req.appId, req.accProductId) }
+    runBlocking { client.activateForStore(req.storeId, req.appId, req.accProductId, req.deviceName) }
+}
+
+/** Same as [lcActivate] but with an optional caller-chosen device label (added after v1 of the ABI
+ *  shipped - kept as a separate export rather than changing [lcActivate]'s signature so existing
+ *  consumers built against ABI v1 keep working unmodified). */
+@OptIn(ExperimentalForeignApi::class)
+@CName("lc_activate_with_device_name")
+public fun lcActivateWithDeviceName(handle: COpaquePointer?, licenseKey: CPointer<ByteVar>?, deviceName: CPointer<ByteVar>?): CPointer<ByteVar>? = guarded(handle) { client ->
+    val key = licenseKey.toKotlinStringOrNull() ?: error("license_key is null")
+    val name = deviceName.toKotlinStringOrNull()
+    runBlocking { client.activate(key, name) }
 }
 
 @OptIn(ExperimentalForeignApi::class)

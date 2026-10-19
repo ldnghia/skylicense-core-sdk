@@ -76,11 +76,18 @@ Secrets: `LICENSE_IT_BASE_URL`, `LICENSE_IT_FIXTURES_JSON` (keys/org/store ids),
 - [x] CI matrix + coverage gate - `.github/workflows/ci.yml` (prior session) has the 3-OS unit matrix + a separate `integration` job (main/nightly, skip-if-unconfigured); this session added Kover (`core/build.gradle.kts`, `:core:koverVerify`, >=85% commonMain line coverage) but did NOT wire it into the CI workflow yet (follow-up) or verify it runs (Google Maven blocked in this sandbox - see Unresolved Questions)
 - [x] E2E checklist doc - `docs/release-e2e-checklist.md` (prior session)
 
+## Known architectural gap found while building this
+`LicenseClientFactory` (the SDK's only public entry point) always derives the device id from the
+real platform `DeviceIdProvider` - there is no public way to inject the plan's synthetic
+`it-<runId>-<target>` device id. Documented in `ActivateFlowIT.kt`; IT runs on the same CI machine
+will reuse the same real device id across runs (each test calls `deactivate()` to release the slot
+afterward as a workaround).
+
 ## Success Criteria
-- [ ] Integration suite green on android-host, iosSimulatorArm64, mingwX64 against dev env, 3 consecutive nightly runs (flake check).
-- [ ] Golden fixtures prove (or correct) camelCase + date-offset assumptions.
-- [ ] Kover: commonMain line coverage >= 85%, enforced in CI.
-- [ ] No leaked device rows after a run (query count of `it-<runId>-%` = 0).
+- [ ] Integration suite green against a real dev env - not run, no instance available.
+- [x] Golden fixtures prove the camelCase assumption correct (confirmed from backend source + a real parse test) - date-offset assumption still unverified (no live `expiryDate`/`activationDate` value captured; existing DTOs keep these as opaque strings, not parsed, so the risk is low-consequence either way).
+- [ ] Kover coverage gate - not added.
+- [ ] No leaked device rows - not applicable, no real backend run happened.
 
 ## Risk Assessment
 | Risk | L x I | Mitigation |

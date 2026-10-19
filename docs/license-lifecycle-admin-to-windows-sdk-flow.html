@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>License Lifecycle: Admin Creation to Windows SDK Verify</title>
+<style>
+  :root {
+    --bg: #ffffff; --bg-alt: #f6f7f9; --bg-raised: #ffffff; --border: #e3e6eb; --border-strong: #cfd4dc;
+    --text: #1a1f29; --text-muted: #5b6270; --text-faint: #8a8f99;
+    --accent: #185fa5; --accent-bg: #e6f1fb; --accent-strong: #0c447c;
+    --ok: #0f6e56; --ok-bg: #e1f5ee;
+    --warn: #854f0b; --warn-bg: #faeeda;
+    --danger: #a32d2d; --danger-bg: #fcebeb;
+    --code-bg: #10131a; --code-text: #d7deea; --mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    /* actor colors */
+    --c-admin: #534ab7; --c-admin-bg: #eeedfe; --c-admin-strong: #26215c;
+    --c-api: #185fa5; --c-api-bg: #e6f1fb; --c-api-strong: #042c53;
+    --c-app: #0f6e56; --c-app-bg: #e1f5ee; --c-app-strong: #04342c;
+    --c-user: #993c1d; --c-user-bg: #faece7; --c-user-strong: #4a1b0c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11141a; --bg-alt: #171b22; --bg-raised: #1b202a; --border: #262c36; --border-strong: #353c48;
+      --text: #e7eaf0; --text-muted: #9aa2b1; --text-faint: #6b7280;
+      --accent: #6cb0ef; --accent-bg: #16293c; --accent-strong: #b5d4f4;
+      --ok: #5dcaa5; --ok-bg: #0e2a22;
+      --warn: #f2c177; --warn-bg: #3a2c0c;
+      --danger: #f09595; --danger-bg: #3a1414;
+      --code-bg: #0a0d13; --code-text: #cfd8e6;
+      --c-admin: #afa9ec; --c-admin-bg: #2a2662; --c-admin-strong: #cecbf6;
+      --c-api: #85b7eb; --c-api-bg: #0c3457; --c-api-strong: #b5d4f4;
+      --c-app: #5dcaa5; --c-app-bg: #0e2a22; --c-app-strong: #9fe1cb;
+      --c-user: #f0997b; --c-user-bg: #3d2112; --c-user-strong: #f5c4b3;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; font-size: 16px; }
+  .layout { display: flex; max-width: 1320px; margin: 0 auto; }
+
+  /* ---------- sidebar ---------- */
+  nav.toc { position: sticky; top: 0; align-self: flex-start; width: 268px; flex-shrink: 0; height: 100vh; overflow-y: auto; padding: 28px 14px 60px; border-right: 1px solid var(--border); }
+  .toc-brand { font-size: 13px; font-weight: 600; color: var(--text-faint); padding: 0 10px 18px; letter-spacing: .02em; }
+  nav.toc a { display: flex; align-items: center; gap: 9px; color: var(--text-muted); text-decoration: none; font-size: 13.5px; padding: 6px 10px; border-radius: 7px; border-left: 2px solid transparent; transition: background .12s, color .12s; }
+  nav.toc a:hover { background: var(--bg-alt); color: var(--text); }
+  nav.toc a.active { background: var(--accent-bg); color: var(--accent-strong); border-left-color: var(--accent); font-weight: 600; }
+  nav.toc .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; }
+  nav.toc a.active .dot { background: var(--accent); }
+  nav.toc .toc-title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); padding: 0 10px; margin: 22px 0 6px; font-weight: 600; }
+  nav.toc .toc-title:first-of-type { margin-top: 0; }
+
+  main { flex: 1; min-width: 0; padding: 0 0 140px; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 56px 56px 32px; border-bottom: 1px solid var(--border); }
+  .eyebrow { font-size: 12.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+  h1 { font-size: 30px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 10px; line-height: 1.25; }
+  .subtitle { color: var(--text-muted); font-size: 16px; max-width: 760px; margin: 0 0 18px; }
+  .meta { color: var(--text-faint); font-size: 13px; }
+  .meta code { font-size: 12px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+  .legend-chip { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; padding: 6px 12px 6px 8px; border-radius: 999px; border: 1px solid var(--border); }
+  .legend-chip .avatar { width: 20px; height: 20px; }
+
+  .tldr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 26px; }
+  .tldr-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--bg-alt); }
+  .tldr-card .label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-faint); margin-bottom: 6px; }
+  .tldr-card .value { font-size: 14px; font-weight: 500; color: var(--text); }
+
+  /* ---------- phase rail ---------- */
+  .rail-wrap { padding: 22px 56px; border-bottom: 1px solid var(--border); background: var(--bg-alt); overflow-x: auto; }
+  .rail { display: flex; align-items: center; min-width: 760px; }
+  .rail a { display: flex; flex-direction: column; align-items: center; gap: 6px; text-decoration: none; color: var(--text-muted); flex: 1; position: relative; }
+  .rail a .ring { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border-strong); display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 700; background: var(--bg); color: var(--text-muted); transition: all .15s; }
+  .rail a:hover .ring { border-color: var(--accent); color: var(--accent); }
+  .rail a .lbl { font-size: 11.5px; font-weight: 500; text-align: center; max-width: 92px; }
+  .rail a:not(:last-child)::after { content: ""; position: absolute; top: 15px; left: calc(50% + 21px); width: calc(100% - 42px); height: 2px; background: var(--border-strong); }
+  .rail a.done .ring { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .rail a.done:not(:last-child)::after { background: var(--accent); }
+
+  /* ---------- content sections ---------- */
+  .section { padding: 0 56px; }
+  h2 { font-size: 21px; font-weight: 650; margin: 56px 0 6px; scroll-margin-top: 20px; display: flex; align-items: center; gap: 10px; }
+  h2 .ph { font-size: 12px; font-weight: 700; color: #fff; background: var(--accent); border-radius: 7px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .h2-desc { color: var(--text-muted); font-size: 14.5px; margin: 0 0 20px; max-width: 760px; }
+  h3 { font-size: 16px; font-weight: 650; margin: 26px 0 8px; scroll-margin-top: 20px; }
+  p { color: var(--text); }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-faint); font-weight: 650; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; background: var(--bg-alt); }
+  tr:hover td { background: var(--bg-alt); }
+
+  code { font-family: var(--mono); font-size: 12.8px; background: var(--bg-alt); border: 1px solid var(--border); border-radius: 4px; padding: 1.5px 5px; }
+  pre { background: var(--code-bg); color: var(--code-text); border-radius: 10px; padding: 16px 18px; overflow-x: auto; font-size: 12.8px; line-height: 1.6; border: 1px solid #000; }
+  pre code { background: none; border: none; padding: 0; color: inherit; }
+
+  .step { border: 1px solid var(--border); border-left-width: 3px; border-radius: 12px; padding: 18px 20px; margin: 14px 0; background: var(--bg-raised); }
+  .step-head { display: flex; align-items: center; gap: 11px; margin-bottom: 10px; }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--bg-alt); color: var(--text-muted); font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid var(--border-strong); }
+  .step-title { font-weight: 650; font-size: 15px; }
+  .who { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 650; border-radius: 999px; padding: 3px 10px 3px 4px; margin-left: auto; white-space: nowrap; }
+  .avatar { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 800; color: #fff; flex-shrink: 0; }
+  .who.admin { background: var(--c-admin-bg); color: var(--c-admin-strong); } .who.admin .avatar { background: var(--c-admin); }
+  .who.api   { background: var(--c-api-bg);   color: var(--c-api-strong); }   .who.api .avatar   { background: var(--c-api); }
+  .who.app   { background: var(--c-app-bg);   color: var(--c-app-strong); }   .who.app .avatar   { background: var(--c-app); }
+  .who.user  { background: var(--c-user-bg);  color: var(--c-user-strong); } .who.user .avatar  { background: var(--c-user); }
+  .step.by-admin { border-left-color: var(--c-admin); }
+  .step.by-api { border-left-color: var(--c-api); }
+  .step.by-app { border-left-color: var(--c-app); }
+  .step.by-user { border-left-color: var(--c-user); }
+
+  .note { border-radius: 10px; padding: 13px 16px; font-size: 13.5px; margin: 16px 0; border: 1px solid; display: flex; gap: 10px; }
+  .note .ic { font-size: 15px; line-height: 1.4; flex-shrink: 0; }
+  .note.info { background: var(--accent-bg); border-color: var(--accent); }
+  .note.ok { background: var(--ok-bg); border-color: var(--ok); }
+  .note.warn { background: var(--warn-bg); border-color: var(--warn); }
+  .note.danger { background: var(--danger-bg); border-color: var(--danger); }
+  .note b { display: block; margin-bottom: 3px; }
+  .note-body { flex: 1; }
+  .cite { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); margin-top: 4px; }
+
+  .badge { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; padding: 2px 8px; border-radius: 5px; }
+  .badge.get { background: var(--ok-bg); color: var(--ok); }
+  .badge.post { background: var(--accent-bg); color: var(--accent); }
+  .badge.put { background: var(--warn-bg); color: var(--warn); }
+  .badge.delete { background: var(--danger-bg); color: var(--danger); }
+
+  .mermaid { background: var(--bg-alt); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin: 18px 0; }
+  .endpoint-line { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin-bottom: 10px; }
+
+  footer.doc-footer { padding: 40px 56px; color: var(--text-faint); font-size: 12.5px; border-top: 1px solid var(--border); margin-top: 40px; }
+
+  @media (max-width: 980px) { .layout { display: block; } nav.toc { display: none; } .hero, .rail-wrap, .section { padding-left: 24px; padding-right: 24px; } .tldr { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc" id="toc">
+    <div class="toc-brand">LicenseCore SDK · Docs</div>
+    <div class="toc-title">Overview</div>
+    <a href="#overview"><span class="dot"></span>Scope &amp; actors</a>
+    <a href="#sequence"><span class="dot"></span>End-to-end sequence</a>
+    <div class="toc-title">Admin side · skyapp-api</div>
+    <a href="#phase-a"><span class="dot"></span>A · Prerequisite entities</a>
+    <a href="#phase-b"><span class="dot"></span>B · Create the license</a>
+    <a href="#phase-c"><span class="dot"></span>C · Org/store settings</a>
+    <a href="#phase-g"><span class="dot"></span>G · Lifecycle actions</a>
+    <div class="toc-title">Client side · skylicense-core-sdk</div>
+    <a href="#phase-d"><span class="dot"></span>D · Integrate the SDK</a>
+    <a href="#phase-e"><span class="dot"></span>E · End-user activation</a>
+    <a href="#phase-f"><span class="dot"></span>F · Recheck &amp; offline grace</a>
+    <div class="toc-title">Reference</div>
+    <a href="#error-codes"><span class="dot"></span>Error code → SDK state</a>
+    <a href="#security"><span class="dot"></span>Security notes</a>
+    <a href="#sources"><span class="dot"></span>Source citations</a>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <div class="eyebrow">License lifecycle · Windows target</div>
+      <h1>From admin creation to Windows SDK verify</h1>
+      <p class="subtitle">A field-level walkthrough of what happens, who does it, and which API each step calls — from a Dcorp admin creating a license in <code>skyapp-api</code> to a Windows desktop app (via <code>skylicense-core-sdk</code>) verifying and enforcing it.</p>
+      <p class="meta">Verified against skyapp-api HEAD and skylicense-core-sdk <code>core/src/commonMain</code> on 2026-10-14. Every claim below cites a <code>file:line</code> — see <a href="#sources">Source citations</a>.</p>
+
+      <div class="legend">
+        <span class="legend-chip"><span class="avatar" style="background:var(--c-admin)">A</span>Admin — Dcorp back office</span>
+        <span class="legend-chip"><span class="avatar" style="background:var(--c-api)">S</span>skyapp-api — backend</span>
+        <span class="legend-chip"><span class="avatar" style="background:var(--c-app)">K</span>skylicense-core-sdk — client</span>
+        <span class="legend-chip"><span class="avatar" style="background:var(--c-user)">U</span>End user</span>
+      </div>
+
+      <div class="tldr">
+        <div class="tldr-card"><div class="label">License key</div><div class="value">Always server-generated (GUID) — admins never type one in</div></div>
+        <div class="tldr-card"><div class="label">Trust model</div><div class="value">No JWKS endpoint — public keys are baked into the app at build time</div></div>
+        <div class="tldr-card"><div class="label">Authorization gap</div><div class="value">No auth found on admin or SDK endpoints — see Security notes</div></div>
+      </div>
+    </div>
+
+    <div class="rail-wrap">
+      <div class="rail">
+        <a href="#phase-a" class="r-link"><span class="ring">A</span><span class="lbl">Prereq entities</span></a>
+        <a href="#phase-b" class="r-link"><span class="ring">B</span><span class="lbl">Create license</span></a>
+        <a href="#phase-c" class="r-link"><span class="ring">C</span><span class="lbl">Org settings</span></a>
+        <a href="#phase-d" class="r-link"><span class="ring">D</span><span class="lbl">Integrate SDK</span></a>
+        <a href="#phase-e" class="r-link"><span class="ring">E</span><span class="lbl">Activate</span></a>
+        <a href="#phase-f" class="r-link"><span class="ring">F</span><span class="lbl">Recheck loop</span></a>
+        <a href="#phase-g" class="r-link"><span class="ring">G</span><span class="lbl">Lifecycle ops</span></a>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 id="overview"><span class="ph">i</span>Scope &amp; actors</h2>
+      <div class="note info">
+        <span class="ic">&#9432;</span>
+        <div class="note-body">
+          <b>Two completely independent trust domains</b>
+          Everything under "Admin side" happens inside skyapp-api, is operated by Dcorp staff, and never
+          touches the SDK directly. Everything under "Client side" runs inside the end user's Windows
+          machine and only ever sees the public HTTP API — never the database, never an admin credential.
+          The only thing that crosses the boundary is the license key (given to the user out-of-band,
+          e.g. by email after purchase) and the signed JWT the SDK receives from <code>/verify</code>.
+        </div>
+      </div>
+
+      <h2 id="sequence"><span class="ph">⇄</span>End-to-end sequence</h2>
+      <p class="h2-desc">The full round trip in one picture — one-time setup, first activation, the background recheck loop, and an admin action landing mid-flight.</p>
+      <div class="mermaid">
+sequenceDiagram
+    participant Admin as Admin (Dcorp)
+    participant API as skyapp-api
+    participant App as Windows app<br/>(licensecore.dll)
+    participant User as End user
+
+    Note over Admin,API: Phase A+B — one-time setup
+    Admin->>API: POST /api/licenses (create)
+    API-->>Admin: licenseKey (server-generated GUID)
+    Admin->>API: POST /api/licenses/settings (allowOffline, checkInterval)
+    Admin->>User: deliver licenseKey (email/portal, out-of-band)
+
+    Note over App,API: Phase D+E — first run
+    App->>App: lc_create(configJson) — trusted public keys baked in
+    User->>App: enters licenseKey
+    App->>API: POST /api/licenses/verify {licenseKey, deviceId}
+    API-->>App: {licenseToken (JWT ES256), licenseKey, statusText, expiryDate, maxDevice}
+    App->>App: verify JWT signature + claims locally
+    App->>API: GET /api/licenses/settings?orgId&storeId
+    API-->>App: {allowOffline, licenseCheckIntervalMinutes}
+    App->>App: cache token + info, state = Valid(Online)
+
+    loop every checkIntervalMinutes
+        App->>API: POST /api/licenses/introspect {token}
+        alt revoked
+            API-->>App: isRevoked=true
+            App->>App: clear cache, state = Revoked
+        else near expiry
+            API-->>App: isExpired or near exp
+            App->>API: POST /api/licenses/verify (refresh)
+            API-->>App: new licenseToken
+        else still fresh
+            API-->>App: isValid=true
+            App->>App: keep cached token
+        else network unreachable
+            App->>App: OfflineGracePolicy decides<br/>Valid(Offline) or NetworkRequired
+        end
+    end
+
+    Note over Admin,API: Any time after issuance
+    Admin->>API: POST /api/licenses/{id}/revoke
+    API-->>App: next introspect reports isRevoked=true
+      </div>
+
+      <h2 id="phase-a"><span class="ph">A</span>Prerequisite entities</h2>
+      <p class="h2-desc">A license cannot be created in isolation — it references entities that must already exist. These are provisioned once per Dcorp customer/product, not per license.</p>
+      <div class="mermaid">
+graph LR
+    Org["Organization<br/>(buyer org)"] --> Lic["License"]
+    AppReg["ApplicationRegister<br/>OrgId + AppId + SecretKey"] --> Lic
+    AccProd["AccProduct"] --> Lic
+    Store["Store"] --> Lic
+      </div>
+      <table>
+        <tr><th>Entity</th><th>Role</th><th>Resolved by</th></tr>
+        <tr><td><code>ApplicationRegister</code></td><td>Binds an org to a registered app (<code>OrgId</code>+<code>AppId</code>), carries the app's <code>SecretKey</code></td><td><code>_applicationRegister.GetByOrgAndAppId(orgId, appId)</code> — fails with <code>APPLICATION_NOT_REGISTERED</code> if missing</td></tr>
+        <tr><td><code>AccProduct</code></td><td>The product/SKU the license grants access to</td><td><code>AccProductId</code> on the license</td></tr>
+        <tr><td><code>Store</code></td><td>Sales channel / storefront the license was sold through</td><td><code>StoreId</code> on the license</td></tr>
+        <tr><td>Buyer organization</td><td>The customer org this license belongs to</td><td><code>BuyerOrganizationId</code> on the license</td></tr>
+      </table>
+      <p class="cite">License.cs:5-24 · ApplicationRegister.cs · AccProduct.cs · LicenseApiService.cs:227 (resolve), LicenseDefault.cs:29-36 (find request)</p>
+
+      <h2 id="phase-b"><span class="ph">B</span>Admin creates the license</h2>
+      <div class="step by-admin">
+        <div class="step-head"><div class="step-num">1</div><div class="step-title">Admin submits the create form</div><div class="who admin"><span class="avatar">A</span>Admin</div></div>
+        <div class="endpoint-line"><span class="badge post">POST</span><code>/api/licenses</code><span style="color:var(--text-faint)">→ LicenseController.Create</span></div>
+        <table>
+          <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+          <tr><td><code>ApplicationRegisterId</code></td><td>int</td><td>Resolves org + app</td></tr>
+          <tr><td><code>AccProductId</code></td><td>int</td><td>The product being licensed</td></tr>
+          <tr><td><code>StoreId</code></td><td>int</td><td>Sales channel</td></tr>
+          <tr><td><code>BuyerOrganizationId</code></td><td>int</td><td>Customer org</td></tr>
+          <tr><td><code>LicenseKey</code></td><td>string</td><td><b>Ignored on create</b> — always server-generated</td></tr>
+          <tr><td><code>LicenseTypeId</code></td><td>enum</td><td><code>Lifetime=1, Cloud=2, Trial=3, Free=4</code></td></tr>
+          <tr><td><code>DurationMonths</code></td><td>int</td><td>Default 1; <b>required ≥1</b> when type is Cloud</td></tr>
+          <tr><td><code>ActivationDate</code> / <code>ExpiryDate</code></td><td>date?</td><td>Optional at create; auto-computed later for Cloud on activation (step 6)</td></tr>
+          <tr><td><code>MaxDevice</code></td><td>int</td><td>Device-slot cap enforced by <code>/verify</code>/<code>/find</code></td></tr>
+          <tr><td><code>IsTrial</code> / <code>TrialDays</code></td><td>bool / int</td><td>Trial bookkeeping</td></tr>
+          <tr><td><code>SaleOrderId</code> / <code>SaleOrderNumber</code></td><td>int? / string</td><td>Links back to the commerce order</td></tr>
+        </table>
+        <p class="cite">LicenseController.cs:43-49 · LicenseApiService.cs:410-445 (CreateLicense) · LicenseModel.cs:91-121 · LicenseStatus.cs:9-15 (LicenseTypeEnum)</p>
+      </div>
+      <div class="step by-api">
+        <div class="step-head"><div class="step-num">2</div><div class="step-title">Backend generates the license key</div><div class="who api"><span class="avatar">S</span>skyapp-api</div></div>
+        <pre><code>license.LicenseKey = Guid.NewGuid().ToString();</code></pre>
+        <p>Always a fresh GUID string — never admin-supplied, never derived from any input field. There is no custom checksum/prefix format.</p>
+        <p class="cite">LicenseApiService.cs:421</p>
+      </div>
+      <div class="note warn">
+        <span class="ic">&#9888;</span>
+        <div class="note-body">
+          <b>Status at creation</b>
+          A license is created in its submitted <code>Status</code> (commonly <code>Draft(1)</code> or
+          <code>Inactive(2)</code>) — <code>Active(3)</code> is what the SDK's <code>/verify</code> and
+          <code>/find</code> endpoints require to issue a token. An admin typically sets
+          <code>Status=Active</code> either at creation or via the general update endpoint before handing
+          the key to a customer.
+        </div>
+      </div>
+
+      <h2 id="phase-c"><span class="ph">C</span>Admin configures org/store settings</h2>
+      <p class="h2-desc">These two values drive the SDK's <code>OfflineGracePolicy</code> and <code>LicenseRecheckScheduler</code> — they are <b>not</b> per-license, they're scoped to org (+ optional per-store override).</p>
+      <table>
+        <tr><th>Endpoint</th><th>Field</th><th>Consumed by SDK as</th></tr>
+        <tr><td><span class="badge get">GET</span>/<span class="badge post">POST</span> <code>/api/licenses/settings?orgId=&amp;storeId=</code></td><td><code>AllowOffline</code> (+ <code>_OverrideForStore</code>)</td><td><code>OfflineGracePolicy.decide(allowOffline, ...)</code></td></tr>
+        <tr><td>same endpoint</td><td><code>LicenseCheckIntervalMinutes</code> (+ <code>_OverrideForStore</code>)</td><td>scheduler tick period, and token lifetime = <code>max(2×interval, 30)</code> min</td></tr>
+      </table>
+      <p class="cite">LicenseSettingController.cs:22-34 · LicenseSettingModel.cs:6-13 · LicenseSettings.cs:9 · LicenseApiService.cs:386-387 (token lifetime formula)</p>
+      <div class="note info">
+        <span class="ic">&#9432;</span>
+        <div class="note-body">
+          <b>Anonymous endpoint</b>
+          <code>LicenseSettingController</code> is explicitly <code>[AllowAnonymous]</code> — the SDK calls
+          it directly (no admin credential), using the same public surface the end user's app has access
+          to. This is intentional: the SDK needs these values to decide offline behavior without a
+          server round-trip to an auth system it doesn't have credentials for.
+        </div>
+      </div>
+
+      <h2 id="phase-d"><span class="ph">D</span>Windows app integrates the SDK</h2>
+      <p class="h2-desc">This happens once, at Dcorp's build time — not per end user.</p>
+      <div class="step by-app">
+        <div class="step-head"><div class="step-num">1</div><div class="step-title">Obtain the trusted signing public key</div><div class="who app"><span class="avatar">K</span>Dcorp dev</div></div>
+        <p>There is <b>no JWKS/public-key discovery endpoint</b> on skyapp-api — the signing key is
+        auto-bootstrapped per environment server-side. Dcorp must obtain the current public key
+        out-of-band (ops handoff) and embed it in the app's config, keyed by <code>kid</code>
+        (key version) so rotation doesn't break already-shipped builds.</p>
+        <p class="cite">TokenSigningService.cs:54-77,113,117 · docs/ops-signing-keys-and-pins-runbook.md</p>
+      </div>
+      <div class="step by-app">
+        <div class="step-head"><div class="step-num">2</div><div class="step-title">Call <code>lc_create</code> once, at process start</div><div class="who app"><span class="avatar">K</span>Windows app</div></div>
+        <pre><code>const char *config_json =
+    "{\"baseUrl\":\"https://your-skyapp-api-host\",\"orgId\":123,"
+    "\"appSalt\":\"a-stable-per-app-secret\","
+    "\"trustedSigningKeys\":{\"v1\":\"-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\"}}";
+
+lc_handle h = lc_create(config_json);</code></pre>
+        <p><code>orgId</code> must match the <code>BuyerOrganizationId</code>'s org used in Phase C's
+        settings — a mismatch means the SDK reads the wrong org's <code>allowOffline</code>/interval.
+        <code>appSalt</code> is a stable per-app secret that gets hashed together with the raw platform
+        device id (<code>HKLM\...\MachineGuid</code> on Windows) before anything is sent to the backend
+        — the backend never sees the raw hardware id.</p>
+        <p class="cite">docs/integration-guide-windows.md · LicenseConfig.kt:8-26 · DeviceIdHasher.kt</p>
+      </div>
+      <div class="note danger">
+        <span class="ic">&#9888;</span>
+        <div class="note-body">
+          <b>Never call <code>lc_*</code> network functions from a UI thread</b>
+          <code>lc_activate</code>/<code>lc_check_now</code>/<code>lc_deactivate</code> can block up to
+          ~45s (3 retries × 15s timeout). Only <code>lc_get_state</code> is non-blocking.
+        </div>
+      </div>
+
+      <h2 id="phase-e"><span class="ph">E</span>End-user activation</h2>
+      <div class="step by-user">
+        <div class="step-head"><div class="step-num">1</div><div class="step-title">User enters the license key Dcorp sent them</div><div class="who user"><span class="avatar">U</span>End user</div></div>
+        <p>The key from Phase B's GUID, delivered out-of-band (email, customer portal) — nothing in
+        this repo automates that delivery.</p>
+      </div>
+      <div class="step by-app">
+        <div class="step-head"><div class="step-num">2</div><div class="step-title">SDK hashes the device id and calls verify</div><div class="who app"><span class="avatar">K</span>SDK</div></div>
+        <div class="endpoint-line"><span class="badge post">POST</span><code>/api/licenses/verify</code></div>
+        <p>This single call also <b>auto-binds this device</b> to the license (claims a slot) if it isn't
+        bound yet; a second call from an already-bound device is treated as a refresh, not a new binding.</p>
+        <p class="cite">LicenseClient.kt:53-58 (activate) · LicenseApiService.kt (verify)</p>
+      </div>
+      <div class="step by-api">
+        <div class="step-head"><div class="step-num">3</div><div class="step-title">Backend issues a signed JWT</div><div class="who api"><span class="avatar">S</span>skyapp-api</div></div>
+        <p>ES256, <code>iss=skyapp-license-engine</code>, claims <code>jti, lid, lk, did, status,
+        exp_date, max_device</code>, header <code>kid=KeyVersion</code>. Lifetime =
+        <code>max(2 × LicenseCheckIntervalMinutes, 30)</code> minutes.</p>
+        <p class="cite">TokenSigningService.cs:54-77 · LicenseApiService.cs:384-388</p>
+      </div>
+      <div class="step by-app">
+        <div class="step-head"><div class="step-num">4</div><div class="step-title">SDK verifies the token <i>locally</i> before trusting anything</div><div class="who app"><span class="avatar">K</span>SDK</div></div>
+        <p>Checks the ES256 signature against <code>trustedSigningKeys[kid]</code> from the app's own
+        config (never fetched from the network), then checks <code>exp</code>, <code>iss</code>, and
+        that the token's <code>did</code> claim matches this device's hashed id. No step before this
+        one is trusted.</p>
+        <p class="cite">LicenseTokenVerifier.kt</p>
+      </div>
+      <div class="step by-app">
+        <div class="step-head"><div class="step-num">5</div><div class="step-title">SDK fetches org settings and caches everything</div><div class="who app"><span class="avatar">K</span>SDK</div></div>
+        <div class="endpoint-line"><span class="badge get">GET</span><code>/api/licenses/settings?orgId=</code></div>
+        <p>Persists token + <code>LicenseInfo</code> + <code>allowOffline</code> + <code>checkIntervalMinutes</code>
+        to platform secure storage (DPAPI on Windows, user-scope). If this follow-up call itself fails,
+        activation still succeeds using backend defaults (<code>allowOffline=true</code>,
+        interval=60 min) rather than failing the whole activation over a secondary read.</p>
+        <p class="cite">LicenseVerifyHandler.kt:36-75 · CachedLicenseRecord.kt</p>
+      </div>
+      <div class="step by-app">
+        <div class="step-head"><div class="step-num">6</div><div class="step-title">SDK publishes <code>Valid(Online)</code></div><div class="who app"><span class="avatar">K</span>SDK</div></div>
+        <p>The Windows app reads this back via <code>lc_get_state</code> (non-blocking) or the
+        <code>LicenseStateListener</code>/<code>StateFlow</code> equivalent, and unlocks whatever the
+        license gates.</p>
+      </div>
+
+      <h2 id="phase-f"><span class="ph">F</span>Background recheck &amp; offline grace</h2>
+      <p class="h2-desc">Once <code>lc_start</code> is called, the SDK's scheduler ticks every <code>checkIntervalMinutes</code> and runs <code>checkNow()</code>:</p>
+      <table>
+        <tr><th>Introspect result</th><th>SDK action</th></tr>
+        <tr><td><code>isRevoked=true</code></td><td>Clear cache immediately → <code>Revoked</code> (device was released/token revoked server-side, possibly by an admin action in Phase G)</td></tr>
+        <tr><td><code>isExpired</code> or remaining time &lt; one interval</td><td>Call <code>/verify</code> again to refresh the token (same code path as Phase E)</td></tr>
+        <tr><td>Still valid and fresh</td><td>Keep the cached token, just bump the last-checked timestamp</td></tr>
+        <tr><td>Network unreachable</td><td><code>ClockRollbackGuard</code> checks for a tampered system clock, then <code>OfflineGracePolicy</code> decides <code>Valid(Offline, graceUntil=token.exp)</code> or <code>NetworkRequired</code></td></tr>
+      </table>
+      <p class="cite">LicenseRecheckLogic.kt:30-101 · OfflineGracePolicy.kt · ClockRollbackGuard.kt</p>
+
+      <h2 id="phase-g"><span class="ph">G</span>Post-issuance admin lifecycle actions</h2>
+      <p class="h2-desc">Everything below can happen at any point after Phase B, entirely inside skyapp-api, with zero coordination from the Windows app — the SDK only finds out on its next <code>introspect</code> tick (Phase F) or next explicit <code>checkNow()</code>.</p>
+      <table>
+        <tr><th>Admin action</th><th>Endpoint</th><th>Precondition</th><th>What the SDK sees next</th></tr>
+        <tr><td>Renew</td><td><span class="badge post">POST</span> <code>/api/licenses/{id}/renew</code> <code>{DurationMonths}</code></td><td>License must be <code>Active</code></td><td>Longer <code>exp_date</code> on the next refreshed token</td></tr>
+        <tr><td>Revoke</td><td><span class="badge post">POST</span> <code>/api/licenses/{id}/revoke</code> <code>{Reason}</code></td><td><code>Active</code> → forced to <code>Inactive</code>; <code>Reason</code> required</td><td><code>introspect</code> returns <code>isRevoked=true</code> → SDK state <code>Revoked</code></td></tr>
+        <tr><td>Reactivate</td><td><span class="badge post">POST</span> <code>/api/licenses/{id}/reactivate</code></td><td><code>Inactive</code> → forced to <code>Active</code></td><td>Next <code>/verify</code> succeeds again</td></tr>
+        <tr><td>Transfer</td><td><span class="badge post">POST</span> <code>/api/licenses/{id}/transfer</code> <code>{TargetStoreId}</code></td><td>Active/Inactive; target store same org</td><td>No direct SDK-visible effect unless store-level settings override differs</td></tr>
+        <tr><td>Change device limit / expiry / general fields</td><td><span class="badge put">PUT</span> <code>/api/licenses</code> <code>LicenseModel</code></td><td>Diffed and change-logged</td><td>New <code>max_device</code>/<code>exp_date</code> on next issued token</td></tr>
+        <tr><td>Force-release a device</td><td><span class="badge post">POST</span> <code>/api/licenses/{id}/devices/release</code> <code>{DeviceId}</code></td><td>Device must currently be bound</td><td>That device's token is revoked → its SDK instance sees <code>Revoked</code> on next introspect; frees a slot for another device</td></tr>
+        <tr><td>Revoke a specific token</td><td><span class="badge post">POST</span> <code>/api/licenses/token/revoke</code></td><td>—</td><td>Same as device release, scoped to one token</td></tr>
+        <tr><td>Bulk delete</td><td><span class="badge delete">DELETE</span> <code>/api/licenses</code> <code>int[] ids</code></td><td>—</td><td>Any outstanding token eventually fails introspect (not found / invalid)</td></tr>
+      </table>
+      <p>Every action above writes a row to <code>LicenseChangeLog</code> via <code>ILicenseChangeLogService</code> — the audit trail an admin reviews, independent of what the SDK does with the outcome.</p>
+      <p class="cite">LicenseController.cs:59-144 · LicenseApiService.cs:447-1100</p>
+
+      <h2 id="error-codes"><span class="ph">#</span>Error code → SDK state (summary)</h2>
+      <p class="h2-desc">Full table and locally-produced states: <code>docs/error-codes-reference.md</code>. The two codes relevant to this document's flow:</p>
+      <table>
+        <tr><th>Backend code</th><th>Context</th><th>SDK state</th></tr>
+        <tr><td>16</td><td>on <code>activate</code> (Phase E)</td><td><code>DeviceLimitReached</code></td></tr>
+        <tr><td>16</td><td>on periodic re-check (Phase F)</td><td><code>Revoked</code> — same code, different meaning by context</td></tr>
+        <tr><td>17</td><td>on <code>deactivate()</code>'s own release call</td><td>treated as success (already released)</td></tr>
+      </table>
+
+      <h2 id="security"><span class="ph">!</span>Security &amp; authorization notes</h2>
+      <div class="note danger">
+        <span class="ic">&#9888;</span>
+        <div class="note-body">
+          <b>No authentication/authorization was found on either surface in this repo</b>
+          A repo-wide search found <code>app.UseAuthorization()</code> wired
+          (<code>CommonStartup.cs:69</code>) but <b>no</b> <code>AddAuthentication</code>, no JWT bearer
+          scheme, and no <code>[Authorize]</code> attribute anywhere in <code>Presentation/Web.Api</code>
+          — including <code>LicenseController</code> (the admin create/revoke/renew/transfer endpoints
+          from Phase B and Phase G). At the ASP.NET layer, the admin endpoints and the SDK's public
+          endpoints are equally unauthenticated. If Dcorp gates admin access, it must be enforced
+          upstream (API gateway, internal network/VPN restriction, or a front-end login that this repo
+          doesn't implement) — this was not located in <code>skyapp-api</code> itself. Confirm this is
+          intentional before treating the admin API as safe to expose beyond a trusted network.
+        </div>
+      </div>
+      <div class="note ok">
+        <span class="ic">&#10003;</span>
+        <div class="note-body">
+          <b>What <i>is</i> enforced</b>
+          The SDK never trusts the network response on its own — every token is verified locally against
+          a key baked into the app at build time (Phase D), and the device-id binding (<code>did</code>
+          claim) stops a leaked token from working on a different machine. The weak point is entirely on
+          the admin-API authorization side, not the client-side trust model.
+        </div>
+      </div>
+
+      <h2 id="sources"><span class="ph">§</span>Source citations</h2>
+      <table>
+        <tr><th>Repo</th><th>File</th><th>What it backs</th></tr>
+        <tr><td>skyapp-api</td><td><code>Presentation/Web.Api/Controllers/LicenseController.cs:43-144</code></td><td>Admin endpoints (create/renew/revoke/reactivate/transfer/update/delete/release-device/token-revoke)</td></tr>
+        <tr><td>skyapp-api</td><td><code>Presentation/Web.Api/Services/Licenses/LicenseApiService.cs:227,384-534,826-1100</code></td><td>Create/verify/find/release/settings logic, token lifetime formula, change-log writes</td></tr>
+        <tr><td>skyapp-api</td><td><code>Libraries/Core/Domain/Licenses/LicenseStatus.cs:1-15</code></td><td>Status enum (Deleted/Draft/Inactive/Active) and LicenseTypeEnum</td></tr>
+        <tr><td>skyapp-api</td><td><code>Presentation/Web.Api/Models/Licenses/LicenseModel.cs:91-121</code>, <code>LicenseSettingModel.cs:6-13</code></td><td>Create DTO fields, settings DTO fields</td></tr>
+        <tr><td>skyapp-api</td><td><code>Libraries/Service/LicenseSigningKeys/TokenSigningService.cs:54-77,113,117</code></td><td>JWT issuance: algorithm, claims, kid</td></tr>
+        <tr><td>skyapp-api</td><td><code>Presentation/Web.Api/Controllers/LicenseSettingController.cs:12,22-34</code></td><td>Anonymous settings endpoint</td></tr>
+        <tr><td>skyapp-api</td><td><code>Presentation/Web.Framework/Infrastructure/CommonStartup.cs:41,69</code></td><td>JSON casing default, auth middleware (present but unconfigured)</td></tr>
+        <tr><td>skylicense-core-sdk</td><td><code>core/src/commonMain/kotlin/com/dcorp/licensecore/LicenseClient.kt</code></td><td>activate/checkNow/deactivate/restore public facade</td></tr>
+        <tr><td>skylicense-core-sdk</td><td><code>core/src/commonMain/kotlin/com/dcorp/licensecore/internal/LicenseVerifyHandler.kt</code>, <code>LicenseRecheckLogic.kt</code></td><td>Verify-then-persist and recheck/offline-grace logic</td></tr>
+        <tr><td>skylicense-core-sdk</td><td><code>core/src/commonMain/kotlin/com/dcorp/licensecore/LicenseConfig.kt</code></td><td>trustedSigningKeys, orgId, appSalt</td></tr>
+        <tr><td>skylicense-core-sdk</td><td><code>docs/integration-guide-windows.md</code>, <code>docs/error-codes-reference.md</code>, <code>docs/license-lifecycle-and-offline-grace.md</code></td><td>Windows ABI usage, error-code table, state-transition diagram (existing docs this page complements)</td></tr>
+      </table>
+      <div class="note warn">
+        <span class="ic">&#9888;</span>
+        <div class="note-body"><b>Note on existing skyapp-api docs</b> <code>docs/license-master-types.md</code> and sibling docs in that repo predate current code in places (e.g. state a <code>MaxLifeTimeYear</code> of 5 vs the current constant of 50 in <code>LicenseDefaults.cs:14</code>) — this page was built from source code, not from those docs.</div>
+      </div>
+    </div>
+
+    <footer class="doc-footer">skylicense-core-sdk · docs/license-lifecycle-admin-to-windows-sdk-flow.html · generated 2026-10-14</footer>
+  </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+    securityLevel: 'loose',
+  });
+
+  // scroll-spy for sidebar TOC
+  var tocLinks = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var sections = tocLinks.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); }).filter(Boolean);
+  var railLinks = Array.prototype.slice.call(document.querySelectorAll('.rail a'));
+
+  function onScroll() {
+    var pos = window.scrollY + 120;
+    var current = sections[0];
+    sections.forEach(function (s) { if (s.offsetTop <= pos) current = s; });
+    tocLinks.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + current.id); });
+    railLinks.forEach(function (a) {
+      var id = a.getAttribute('href').slice(1);
+      var idx = sections.findIndex(function (s) { return s.id === id; });
+      var curIdx = sections.findIndex(function (s) { return s.id === current.id; });
+      a.classList.toggle('done', idx <= curIdx && idx >= 2);
+    });
+  }
+  document.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+</script>
+</body>
+</html>

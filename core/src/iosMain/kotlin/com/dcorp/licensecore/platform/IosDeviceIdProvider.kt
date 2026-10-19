@@ -1,15 +1,17 @@
 package com.dcorp.licensecore.platform
 
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
+import kotlinx.cinterop.value
+import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFTypeRefVar
+import platform.CoreFoundation.kCFBooleanTrue
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.NSData
 import platform.Foundation.NSMutableDictionary
-import platform.Foundation.NSString
 import platform.Foundation.NSUUID
-import platform.Foundation.create
-import platform.Foundation.dataUsingEncoding
-import platform.Foundation.NSUTF8StringEncoding
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.errSecSuccess
@@ -30,8 +32,13 @@ import platform.UIKit.UIDevice
  * a `MaxDevice` slot on reinstall - instead store a random UUID in the Keychain (survives
  * reinstall in practice), falling back to `identifierForVendor` only if the Keychain write fails.
  *
- * UNVERIFIED (see `KeychainSecureStorage` - same caveat: never built, no macOS host available).
+ * Bridges `NSMutableDictionary` <-> `CFDictionaryRef` at the `SecItemXxx` boundary and the UUID
+ * string via plain `ByteArray` (see [CfBridging]) - no `NSString` cast, which Kotlin/Native's
+ * compiler statically rejects as always-failing (`uuid as NSString` is not the same object graph
+ * as `kotlin.String` on this compiler version). Built and verified against a real Kotlin/Native
+ * iOS compile on 2026-10-14.
  */
+@OptIn(ExperimentalForeignApi::class)
 internal class IosDeviceIdProvider(private val service: String) : DeviceIdProvider {
     override fun rawDeviceId(): String {
         readUuid()?.let { return it }
@@ -42,29 +49,42 @@ internal class IosDeviceIdProvider(private val service: String) : DeviceIdProvid
 
     private fun readUuid(): String? = memScoped {
         val query = baseQuery().apply {
-            setObject(kSecReturnData, forKey = kSecReturnData)
-            setObject(kSecMatchLimitOne, forKey = kSecMatchLimit)
+            setObject(kCFBooleanTrue.asNSNumber(), forKey = kSecReturnData.asNSString())
+            setObject(kSecMatchLimitOne.asNSString(), forKey = kSecMatchLimit.asNSString())
         }
-        val result = alloc<CFTypeRefVar>()
-        val status = SecItemCopyMatching(query, result.ptr)
-        if (status != errSecSuccess) return@memScoped null
-        val data = CFBridgingRelease(result.value) as? NSData ?: return@memScoped null
-        NSString.create(data = data, encoding = NSUTF8StringEncoding) as? String
+        val cfQuery = query.asCFDictionary()
+        try {
+            val result = alloc<CFTypeRefVar>()
+            val status = SecItemCopyMatching(cfQuery, result.ptr)
+            if (status != errSecSuccess) return@memScoped null
+            val data = CFBridgingRelease(result.value) as? NSData ?: return@memScoped null
+            data.toByteArray().decodeToString()
+        } finally {
+            CFRelease(cfQuery)
+        }
     }
 
     private fun writeUuid(uuid: String): Boolean {
-        val data = (uuid as NSString).dataUsingEncoding(NSUTF8StringEncoding) ?: return false
+        val data = uuid.encodeToByteArray().toNSData()
         val insert = baseQuery().apply {
-            setObject(data, forKey = kSecValueData)
-            setObject(kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly, forKey = kSecAttrAccessible)
+            setObject(data, forKey = kSecValueData.asNSString())
+            setObject(
+                kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly.asNSString(),
+                forKey = kSecAttrAccessible.asNSString(),
+            )
         }
-        return SecItemAdd(insert, null) == errSecSuccess
+        val cfInsert = insert.asCFDictionary()
+        try {
+            return SecItemAdd(cfInsert, null) == errSecSuccess
+        } finally {
+            CFRelease(cfInsert)
+        }
     }
 
     private fun baseQuery(): NSMutableDictionary = NSMutableDictionary().apply {
-        setObject(kSecClassGenericPassword, forKey = kSecClass)
-        setObject(service, forKey = kSecAttrService)
-        setObject(ACCOUNT, forKey = kSecAttrAccount)
+        setObject(kSecClassGenericPassword.asNSString(), forKey = kSecClass.asNSString())
+        setObject(service, forKey = kSecAttrService.asNSString())
+        setObject(ACCOUNT, forKey = kSecAttrAccount.asNSString())
     }
 
     private companion object {

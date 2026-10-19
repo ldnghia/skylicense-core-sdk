@@ -14,6 +14,7 @@ public object LicenseClientFactory {
         return LicenseClient(
             config = config,
             deviceIdProvider = platform.deviceIdProvider,
+            deviceAboutProvider = platform.deviceAboutProvider,
             api = LicenseApiService(http, config),
             verifier = LicenseTokenVerifier(config.trustedSigningKeys),
             cache = LicenseCacheRepository(platform.storage),

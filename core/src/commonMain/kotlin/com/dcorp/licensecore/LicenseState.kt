@@ -37,8 +37,11 @@ public sealed class LicenseState {
         public enum class Reason { NotFound, Inactive, TokenUntrusted, InvalidArgument, NoLicenseAvailable, Unknown }
     }
 
-    /** Online check is required to make progress (e.g. offline grace exhausted). */
-    public data object NetworkRequired : LicenseState()
+    /** Online check is required to make progress (e.g. offline grace exhausted). [detail] carries
+     *  the underlying transport failure message when known (redaction-safe - see
+     *  `LogRedactionTest.kt` - never contains the license key/token), null for non-transport causes
+     *  (clock-rollback detected, allowOffline=false). Surfaced to the C ABI's `error.message`. */
+    public data class NetworkRequired(public val detail: String? = null) : LicenseState()
 }
 
 /** Opaque, display-only license fields copied verbatim from the backend's verify/find response. */

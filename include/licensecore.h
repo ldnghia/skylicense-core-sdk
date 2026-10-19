@@ -42,8 +42,13 @@ lc_handle lc_create(const char* config_json);
 /* Activates by license key (auto-binds this device). */
 char* lc_activate(lc_handle h, const char* license_key);
 
-/* Activates without a known license key: {"storeId":1,"appId":2,"accProductId":3} (appId and/or
- * accProductId required, accProductId optional). */
+/* Same as lc_activate but with an optional caller-chosen device label (e.g. "Counter 1") an admin
+ * can use to recognize this device later; pass NULL to behave exactly like lc_activate. Added
+ * after ABI v1 shipped as a separate export so existing lc_activate callers are unaffected. */
+char* lc_activate_with_device_name(lc_handle h, const char* license_key, const char* device_name);
+
+/* Activates without a known license key: {"storeId":1,"appId":2,"accProductId":3,"deviceName":"Counter 1"}
+ * (appId and/or accProductId required, accProductId optional; deviceName optional). */
 char* lc_activate_for_store(lc_handle h, const char* request_json);
 
 /* Imports a token issued out-of-band (admin-mediated offline activation). */

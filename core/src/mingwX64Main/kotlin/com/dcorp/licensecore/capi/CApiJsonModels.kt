@@ -17,7 +17,7 @@ internal data class CApiConfigDto(
 )
 
 @Serializable
-internal data class CApiActivateForStoreRequestDto(val storeId: Int, val appId: Int? = null, val accProductId: Int? = null)
+internal data class CApiActivateForStoreRequestDto(val storeId: Int, val appId: Int? = null, val accProductId: Int? = null, val deviceName: String? = null)
 
 @Serializable
 internal data class CApiErrorDto(val code: String, val message: String)
@@ -55,5 +55,8 @@ private fun LicenseState.toDto(): CApiResponseDto = when (this) {
         state = "INVALID",
         error = CApiErrorDto(reason.name.uppercase(), detail ?: reason.name),
     )
-    is LicenseState.NetworkRequired -> CApiResponseDto(state = "NETWORK_REQUIRED")
+    is LicenseState.NetworkRequired -> CApiResponseDto(
+        state = "NETWORK_REQUIRED",
+        error = detail?.let { CApiErrorDto("TRANSPORT", it) },
+    )
 }

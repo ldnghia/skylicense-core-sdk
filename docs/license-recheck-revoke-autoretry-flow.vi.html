@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Luồng recheck, revoke, auto-retry — TransporterAgent / SDK / skyapp-api</title>
+<style>
+  :root {
+    --bg: #ffffff; --bg-alt: #f6f7f9; --bg-raised: #ffffff; --border: #e3e6eb; --border-strong: #cfd4dc;
+    --text: #1a1f29; --text-muted: #5b6270; --text-faint: #8a8f99;
+    --accent: #185fa5; --accent-bg: #e6f1fb; --accent-strong: #0c447c;
+    --ok: #0f6e56; --ok-bg: #e1f5ee;
+    --warn: #854f0b; --warn-bg: #faeeda;
+    --danger: #a32d2d; --danger-bg: #fcebeb;
+    --code-bg: #10131a; --code-text: #d7deea; --mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --c-agent: #993c1d; --c-agent-bg: #faece7; --c-agent-strong: #4a1b0c;
+    --c-sdk: #185fa5; --c-sdk-bg: #e6f1fb; --c-sdk-strong: #042c53;
+    --c-api: #0f6e56; --c-api-bg: #e1f5ee; --c-api-strong: #04342c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11141a; --bg-alt: #171b22; --bg-raised: #1b202a; --border: #262c36; --border-strong: #353c48;
+      --text: #e7eaf0; --text-muted: #9aa2b1; --text-faint: #6b7280;
+      --accent: #6cb0ef; --accent-bg: #16293c; --accent-strong: #b5d4f4;
+      --ok: #5dcaa5; --ok-bg: #0e2a22;
+      --warn: #f2c177; --warn-bg: #3a2c0c;
+      --danger: #f09595; --danger-bg: #3a1414;
+      --code-bg: #0a0d13; --code-text: #cfd8e6;
+      --c-agent: #f0997b; --c-agent-bg: #3d2112; --c-agent-strong: #f5c4b3;
+      --c-sdk: #85b7eb; --c-sdk-bg: #0c3457; --c-sdk-strong: #b5d4f4;
+      --c-api: #5dcaa5; --c-api-bg: #0e2a22; --c-api-strong: #9fe1cb;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.65; font-size: 16px; }
+  .layout { display: flex; max-width: 1320px; margin: 0 auto; }
+
+  nav.toc { position: sticky; top: 0; align-self: flex-start; width: 268px; flex-shrink: 0; height: 100vh; overflow-y: auto; padding: 28px 14px 60px; border-right: 1px solid var(--border); }
+  .toc-brand { font-size: 13px; font-weight: 600; color: var(--text-faint); padding: 0 10px 18px; letter-spacing: .02em; }
+  nav.toc a { display: flex; align-items: center; gap: 9px; color: var(--text-muted); text-decoration: none; font-size: 13.5px; padding: 6px 10px; border-radius: 7px; border-left: 2px solid transparent; transition: background .12s, color .12s; }
+  nav.toc a:hover { background: var(--bg-alt); color: var(--text); }
+  nav.toc a.active { background: var(--accent-bg); color: var(--accent-strong); border-left-color: var(--accent); font-weight: 600; }
+  nav.toc .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; }
+  nav.toc a.active .dot { background: var(--accent); }
+  nav.toc .toc-title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); padding: 0 10px; margin: 22px 0 6px; font-weight: 600; }
+  nav.toc .toc-title:first-of-type { margin-top: 0; }
+
+  main { flex: 1; min-width: 0; padding: 0 0 140px; }
+
+  .hero { padding: 56px 56px 32px; border-bottom: 1px solid var(--border); }
+  .eyebrow { font-size: 12.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+  h1 { font-size: 30px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 10px; line-height: 1.3; }
+  .subtitle { color: var(--text-muted); font-size: 16px; max-width: 780px; margin: 0 0 18px; }
+  .meta { color: var(--text-faint); font-size: 13px; }
+  .meta code { font-size: 12px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+  .legend-chip { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; padding: 6px 12px 6px 8px; border-radius: 999px; border: 1px solid var(--border); }
+  .legend-chip .avatar { width: 20px; height: 20px; }
+
+  .tldr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 26px; }
+  .tldr-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--bg-alt); }
+  .tldr-card .label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-faint); margin-bottom: 6px; }
+  .tldr-card .value { font-size: 14px; font-weight: 500; color: var(--text); }
+
+  .rail-wrap { padding: 22px 56px; border-bottom: 1px solid var(--border); background: var(--bg-alt); overflow-x: auto; }
+  .rail { display: flex; align-items: center; min-width: 820px; }
+  .rail a { display: flex; flex-direction: column; align-items: center; gap: 6px; text-decoration: none; color: var(--text-muted); flex: 1; position: relative; }
+  .rail a .ring { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border-strong); display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 700; background: var(--bg); color: var(--text-muted); transition: all .15s; }
+  .rail a:hover .ring { border-color: var(--accent); color: var(--accent); }
+  .rail a .lbl { font-size: 11.5px; font-weight: 500; text-align: center; max-width: 108px; }
+  .rail a:not(:last-child)::after { content: ""; position: absolute; top: 15px; left: calc(50% + 21px); width: calc(100% - 42px); height: 2px; background: var(--border-strong); }
+  .rail a.done .ring { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .rail a.done:not(:last-child)::after { background: var(--accent); }
+
+  .section { padding: 0 56px; }
+  h2 { font-size: 21px; font-weight: 650; margin: 56px 0 6px; scroll-margin-top: 20px; display: flex; align-items: center; gap: 10px; }
+  h2 .ph { font-size: 12px; font-weight: 700; color: #fff; background: var(--accent); border-radius: 7px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .h2-desc { color: var(--text-muted); font-size: 14.5px; margin: 0 0 20px; max-width: 780px; }
+  h3 { font-size: 16px; font-weight: 650; margin: 26px 0 8px; scroll-margin-top: 20px; }
+  p { color: var(--text); }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-faint); font-weight: 650; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; background: var(--bg-alt); }
+  tr:hover td { background: var(--bg-alt); }
+
+  code { font-family: var(--mono); font-size: 12.8px; background: var(--bg-alt); border: 1px solid var(--border); border-radius: 4px; padding: 1.5px 5px; }
+  pre { background: var(--code-bg); color: var(--code-text); border-radius: 10px; padding: 16px 18px; overflow-x: auto; font-size: 12.8px; line-height: 1.6; border: 1px solid #000; }
+  pre code { background: none; border: none; padding: 0; color: inherit; }
+
+  .step { border: 1px solid var(--border); border-left-width: 3px; border-radius: 12px; padding: 18px 20px; margin: 14px 0; background: var(--bg-raised); }
+  .step-head { display: flex; align-items: center; gap: 11px; margin-bottom: 10px; }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--bg-alt); color: var(--text-muted); font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid var(--border-strong); }
+  .step-title { font-weight: 650; font-size: 15px; }
+  .who { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 650; border-radius: 999px; padding: 3px 10px 3px 4px; margin-left: auto; white-space: nowrap; }
+  .avatar { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 800; color: #fff; flex-shrink: 0; }
+  .who.agent { background: var(--c-agent-bg); color: var(--c-agent-strong); } .who.agent .avatar { background: var(--c-agent); }
+  .who.sdk   { background: var(--c-sdk-bg);   color: var(--c-sdk-strong); }   .who.sdk .avatar   { background: var(--c-sdk); }
+  .who.api   { background: var(--c-api-bg);   color: var(--c-api-strong); }   .who.api .avatar   { background: var(--c-api); }
+  .step.by-agent { border-left-color: var(--c-agent); }
+  .step.by-sdk { border-left-color: var(--c-sdk); }
+  .step.by-api { border-left-color: var(--c-api); }
+
+  .note { border-radius: 10px; padding: 13px 16px; font-size: 13.5px; margin: 16px 0; border: 1px solid; display: flex; gap: 10px; }
+  .note .ic { font-size: 15px; line-height: 1.4; flex-shrink: 0; }
+  .note.info { background: var(--accent-bg); border-color: var(--accent); }
+  .note.ok { background: var(--ok-bg); border-color: var(--ok); }
+  .note.warn { background: var(--warn-bg); border-color: var(--warn); }
+  .note.danger { background: var(--danger-bg); border-color: var(--danger); }
+  .note b { display: block; margin-bottom: 3px; }
+  .note-body { flex: 1; }
+  .cite { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); margin-top: 4px; }
+
+  .mermaid { background: var(--bg-alt); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin: 18px 0; }
+
+  footer.doc-footer { padding: 40px 56px; color: var(--text-faint); font-size: 12.5px; border-top: 1px solid var(--border); margin-top: 40px; }
+
+  @media (max-width: 980px) { .layout { display: block; } nav.toc { display: none; } .hero, .rail-wrap, .section { padding-left: 24px; padding-right: 24px; } .tldr { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc" id="toc">
+    <div class="toc-brand">LicenseCore SDK · Tài liệu</div>
+    <div class="toc-title">Bắt đầu từ đầu</div>
+    <a href="#start-1"><span class="dot"></span>1 · Admin tạo license</a>
+    <a href="#start-2"><span class="dot"></span>2 · Cấu hình app</a>
+    <a href="#start-3"><span class="dot"></span>3 · Chuẩn bị signing key</a>
+    <a href="#start-4"><span class="dot"></span>4 · Start app lần đầu</a>
+    <a href="#run-cases"><span class="dot"></span>Case cụ thể khi start</a>
+    <div class="toc-title">Tổng quan</div>
+    <a href="#overview"><span class="dot"></span>Ba thành phần</a>
+    <a href="#sequence"><span class="dot"></span>Luồng tổng thể</a>
+    <div class="toc-title">Hoạt động bình thường</div>
+    <a href="#phase-a"><span class="dot"></span>A · Activate lần đầu</a>
+    <a href="#phase-b"><span class="dot"></span>B · Recheck định kỳ</a>
+    <div class="toc-title">Khi có sự cố</div>
+    <a href="#phase-c"><span class="dot"></span>C · Revoke bị phát hiện</a>
+    <a href="#phase-d"><span class="dot"></span>D · Auto-retry activate</a>
+    <div class="toc-title">Tính năng liên quan</div>
+    <a href="#phase-e"><span class="dot"></span>E · Auto-fetch key (TOFU)</a>
+    <a href="#phase-f"><span class="dot"></span>F · DeviceName / DeviceAbout</a>
+    <div class="toc-title">Tham chiếu</div>
+    <a href="#manual-actions"><span class="dot"></span>Thao tác người dùng cần làm</a>
+    <a href="#gotchas"><span class="dot"></span>Lỗi thường gặp khi test</a>
+    <a href="#config"><span class="dot"></span>Bảng tham số config</a>
+    <a href="#sources"><span class="dot"></span>Trích dẫn nguồn</a>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <div class="eyebrow">LicenseCore SDK · Vận hành sau khi activate</div>
+      <h1>Luồng recheck, revoke, và tự phục hồi license</h1>
+      <p class="subtitle">Sau khi license đã activate lần đầu, điều gì giữ cho trạng thái license luôn đúng với server? Trang này mô tả vòng lặp recheck nền, cách revoke được phát hiện, và tính năng tự động activate lại khi license khả dụng trở lại — không cần restart app.</p>
+      <p class="meta">Đối chiếu với mã nguồn thật <code>skytransporter/TransporterAgent</code>, <code>skylicense-core-sdk/core/src/commonMain</code> và <code>skyapp-api</code> ngày 2026-10-16. Tên field/hàm giữ nguyên tiếng Anh để khớp mã nguồn.</p>
+
+      <div class="legend">
+        <span class="legend-chip"><span class="avatar" style="background:var(--c-agent)">T</span>TransporterAgent — app tiêu thụ SDK</span>
+        <span class="legend-chip"><span class="avatar" style="background:var(--c-sdk)">K</span>skylicense-core-sdk — licensecore.dll</span>
+        <span class="legend-chip"><span class="avatar" style="background:var(--c-api)">S</span>skyapp-api — backend</span>
+      </div>
+
+      <div class="tldr">
+        <div class="tldr-card"><div class="label">Recheck định kỳ</div><div class="value">Chạy ngầm trong DLL, chu kỳ <code>checkIntervalMinutes</code> — không log ra ngoài</div></div>
+        <div class="tldr-card"><div class="label">Phát hiện revoke</div><div class="value">Qua <code>introspect</code>, không phải qua hạn token — tối đa 1 chu kỳ để bắt được</div></div>
+        <div class="tldr-card"><div class="label">Tự phục hồi</div><div class="value">Timer riêng phía app (mới thêm) — DLL tự nó không bao giờ retry activate</div></div>
+      </div>
+    </div>
+
+    <div class="rail-wrap">
+      <div class="rail">
+        <a href="#phase-a" class="r-link"><span class="ring">A</span><span class="lbl">Activate lần đầu</span></a>
+        <a href="#phase-b" class="r-link"><span class="ring">B</span><span class="lbl">Recheck định kỳ</span></a>
+        <a href="#phase-c" class="r-link"><span class="ring">C</span><span class="lbl">Revoke phát hiện</span></a>
+        <a href="#phase-d" class="r-link"><span class="ring">D</span><span class="lbl">Auto-retry</span></a>
+        <a href="#phase-e" class="r-link"><span class="ring">E</span><span class="lbl">Auto-fetch key</span></a>
+        <a href="#phase-f" class="r-link"><span class="ring">F</span><span class="lbl">Device info</span></a>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 id="start-1"><span class="ph">1</span>Admin tạo license</h2>
+      <p class="h2-desc">Điểm bắt đầu của mọi thứ — không có license thì không app nào activate được.</p>
+
+      <div class="step by-api">
+        <div class="step-head"><span class="step-num">•</span><span class="step-title">POST /api/licenses</span><span class="who api"><span class="avatar">S</span>skyapp-api</span></div>
+        <p><code>LicenseKey</code> luôn do server tự sinh (GUID) — admin không tự nhập, không tự chọn.</p>
+        <table>
+          <tr><th>Field</th><th>Bắt buộc</th><th>Ghi chú</th></tr>
+          <tr><td><code>LicenseTypeId</code></td><td>✓</td><td><code>Draft/Lifetime/Cloud/Trial</code> — chọn <code>Lifetime</code> hoặc <code>Cloud</code> để dùng ngay</td></tr>
+          <tr><td><code>DurationMonths</code></td><td>✓ nếu Cloud</td><td>Phải ≥ 1 nếu <code>LicenseTypeId=Cloud</code></td></tr>
+          <tr><td><code>ApplicationRegisterId</code>, <code>AccProductId</code>, <code>StoreId</code></td><td>✓</td><td>Xác định app/sản phẩm/cửa hàng nào được dùng license này</td></tr>
+          <tr><td><code>BuyerOrganizationId</code></td><td>✓</td><td>Dùng để tra <code>LicenseCheckIntervalMinutes</code> lúc tính hạn token — <b>khác</b> <code>orgId</code> app dùng để activate, xem mục Lỗi thường gặp</td></tr>
+          <tr><td><code>MaxDevice</code></td><td>khuyến nghị</td><td>Để trống = không giới hạn số thiết bị</td></tr>
+          <tr><td><code>Status</code></td><td>✓</td><td>Phải là <code>Active</code> thì license mới dùng được ngay — tạo xong mặc định có thể là <code>Draft</code> tuỳ UI admin</td></tr>
+        </table>
+        <div class="cite">LicenseApiService.cs:411-433 · LicenseStatus.cs</div>
+      </div>
+
+      <div class="note info">
+        <span class="ic">&#9432;</span>
+        <div class="note-body"><b>Kết quả bước này</b> Một <code>LicenseKey</code> dạng GUID (vd <code>53153e62-4ca4-49ef-9816-c33acc5287d2</code>) — gửi cho người cài đặt app, hoặc đưa thẳng vào config lúc build/deploy.</div>
+      </div>
+
+      <h2 id="start-2"><span class="ph">2</span>Cấu hình app (appsettings.json)</h2>
+      <p class="h2-desc">Phía <code>TransporterAgent</code> (hoặc bất kỳ app nào nhúng SDK) cần các giá trị sau trước khi start.</p>
+      <table>
+        <tr><th>Config</th><th>Giá trị</th></tr>
+        <tr><td><code>License.Enabled</code></td><td><code>true</code> — bật luồng check license</td></tr>
+        <tr><td><code>License.LicenseKey</code></td><td>GUID lấy từ bước 1</td></tr>
+        <tr><td><code>License.AppSalt</code></td><td>Chuỗi bí mật cố định của app — <b>không đổi</b> sau khi đã activate (đổi sẽ ra <code>deviceId</code> hash khác, tính như máy mới)</td></tr>
+        <tr><td><code>License.UseSandbox</code> / <code>UseDevSandbox</code></td><td>Chọn gateway: Prod / Staging / Dev</td></tr>
+        <tr><td><code>License.DeviceName</code></td><td>Tuỳ chọn — nhãn dễ đọc cho thiết bị này</td></tr>
+        <tr><td><code>License.TrustedSigningKeysDir</code></td><td>Thư mục chứa <code>&lt;kid&gt;.pem</code> — mặc định <code>keys/trusted-signing-keys</code></td></tr>
+        <tr><td><code>License.AutoFetchTrustedSigningKeys</code></td><td><code>true</code> (dev) để tự fetch key, <code>false</code> (production) để bắt buộc pin thủ công</td></tr>
+      </table>
+
+      <h2 id="start-3"><span class="ph">3</span>Chuẩn bị signing key</h2>
+      <p class="h2-desc">Chỉ cần làm nếu <code>AutoFetchTrustedSigningKeys=false</code> — xem chi tiết ở mục E bên dưới.</p>
+      <div class="step by-agent">
+        <div class="step-head"><span class="step-num">•</span><span class="step-title">Đặt file public key trước khi start</span><span class="who agent"><span class="avatar">T</span>Ops/Admin</span></div>
+        <p>Lấy <code>PublicKeyPem</code> (query bảng <code>LicenseSigningKey</code> hoặc gọi <code>GET /api/licenses/signing-keys</code> từ máy ops), lưu thành file <code>v1.pem</code> trong <code>TrustedSigningKeysDir</code> — đặt tên theo đúng <code>kid</code>.</p>
+      </div>
+
+      <h2 id="start-4"><span class="ph">4</span>Start app lần đầu</h2>
+      <p class="h2-desc"><code>LicenseHostedService.StartAsync()</code> tự chạy: không có cache → gọi <code>ActivateAsync(LicenseKey)</code> → gắn thiết bị hiện tại vào license (auto-bind, không có bước "bind" riêng) → mở middleware nếu thành công.</p>
+
+      <h2 id="run-cases"><span class="ph">?</span>Case cụ thể khi start</h2>
+      <p class="h2-desc">Kết quả thực tế tuỳ vào trạng thái license lúc activate — tra theo mã lỗi backend trả về.</p>
+      <table>
+        <tr><th>Tình huống</th><th>Mã lỗi backend</th><th>State SDK trả về</th></tr>
+        <tr><td>License đúng, còn hạn, còn slot, chưa từng activate máy này</td><td>— (thành công)</td><td><code>VALID</code> — chạy bình thường</td></tr>
+        <tr><td><code>LicenseKey</code> sai hoặc không tồn tại</td><td><code>LICENSE_NOTFOUND</code> (1)</td><td><code>Invalid(NotFound)</code></td></tr>
+        <tr><td>License <code>Status</code> ≠ Active (Draft/Inactive/Deleted)</td><td><code>LICENSE_STATUS_INVALID</code> (13)</td><td><code>Invalid(Inactive)</code></td></tr>
+        <tr><td>License đã hết <code>ExpiryDate</code></td><td><code>LICENSE_EXPIRED</code> (14)</td><td><code>Expired</code></td></tr>
+        <tr><td>Đã đủ <code>MaxDevice</code>, máy này chưa từng bind</td><td><code>DEVICE_LIMIT_REACHED</code> (16)</td><td><code>DeviceLimitReached</code></td></tr>
+        <tr><td>Máy này đã bind trước đó, giờ activate lại (vd sau khi clear cache)</td><td>— (thành công, chỉ touch lại)</td><td><code>VALID</code> — không tính vào slot mới</td></tr>
+        <tr><td>Thiếu file <code>.pem</code> + <code>AutoFetchTrustedSigningKeys=false</code></td><td>— (verify thành công ở server)</td><td><code>Invalid(TokenUntrusted)</code> — SDK không verify được chữ ký local</td></tr>
+        <tr><td>Mất mạng / server không với tới được</td><td>— (transport error)</td><td><code>NetworkRequired</code> — DLL tự retry mỗi phút</td></tr>
+        <tr><td><code>License.Enabled=false</code></td><td>— (không gọi gì cả)</td><td>Không check license — app chạy tự do, middleware không chặn</td></tr>
+      </table>
+      <div class="cite">LicenseErrorMapping.kt:6-16 · LicenseDefaults.cs (ErrorCodes)</div>
+    </div>
+
+    <div class="section">
+      <h2 id="overview"><span class="ph">i</span>Ba thành phần liên quan</h2>
+      <div class="note info">
+        <span class="ic">&#9432;</span>
+        <div class="note-body">
+          <b>Ai làm gì</b>
+          <b>TransporterAgent</b> (C#, Windows Service) là app thật dùng SDK — nó quyết định khi nào gọi activate, đọc config, chặn HTTP request khi license không hợp lệ. <b>skylicense-core-sdk</b> (Kotlin/Native, biên dịch ra <code>licensecore.dll</code>) chứa toàn bộ logic verify/cache/recheck — chạy hoàn toàn độc lập, không biết gì về nghiệp vụ của app. <b>skyapp-api</b> là nguồn sự thật duy nhất về trạng thái license — mọi quyết định cuối cùng (còn hạn, bị revoke, còn slot) đều do nó trả lời.
+        </div>
+      </div>
+
+      <h2 id="sequence"><span class="ph">⇄</span>Luồng tổng thể</h2>
+      <p class="h2-desc">Một chu kỳ đầy đủ: activate thành công, recheck giữ token, admin revoke, agent phát hiện và tự phục hồi.</p>
+      <div class="mermaid">
+sequenceDiagram
+    participant T as TransporterAgent
+    participant K as skylicense-core-sdk
+    participant S as skyapp-api
+
+    T->>K: InitializeAsync + ActivateAsync(licenseKey)
+    K->>S: POST /verify
+    S-->>K: JWT đã ký (ES256) + checkIntervalMinutes
+    K-->>T: state = VALID
+    Note over T,K: LicenseGateMiddleware mở cổng HTTP
+
+    loop Mỗi checkIntervalMinutes
+        K->>S: POST /token/introspect
+        S-->>K: isRevoked=false
+        K-->>T: vẫn VALID (giữ token cũ)
+    end
+
+    Note over S: Admin revoke license<br/>RevokeAllForLicense() đánh dấu token IsRevoked=1
+
+    K->>S: POST /token/introspect (tick kế tiếp)
+    S-->>K: isRevoked=true
+    K-->>T: state = Unlicensed, cache bị xoá
+    Note over T: LicenseGateMiddleware chặn HTTP (503)
+
+    Note over S: Admin reactivate license
+
+    loop Mỗi RetryActivationIntervalMinutes (timer mới, phía T)
+        T->>K: ActivateAsync(licenseKey) lại
+        K->>S: POST /verify
+    end
+    S-->>K: JWT mới (license đã Active)
+    K-->>T: state = VALID
+    Note over T,K: Middleware tự mở lại - không cần restart
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 id="phase-a"><span class="ph">A</span>Activate lần đầu</h2>
+      <p class="h2-desc">Xảy ra đúng một lần khi app khởi động, trong <code>LicenseHostedService.StartAsync()</code>.</p>
+
+      <div class="step by-agent">
+        <div class="step-head"><span class="step-num">1</span><span class="step-title">App khởi động, kiểm tra cache</span><span class="who agent"><span class="avatar">T</span>TransporterAgent</span></div>
+        <p><code>InitializeAsync()</code> tạo native client, <code>CheckNowAsync()</code> đọc cache local — nếu trống thì trả <code>Unlicensed</code> ngay, không gọi mạng.</p>
+        <div class="cite">LicenseHostedService.cs:51-54</div>
+      </div>
+
+      <div class="step by-sdk">
+        <div class="step-head"><span class="step-num">2</span><span class="step-title">Gọi verify, nhận token</span><span class="who sdk"><span class="avatar">K</span>SDK</span></div>
+        <p><code>LicenseClient.activate()</code> gọi <code>POST /verify</code> — request này <b>tự động bind thiết bị</b> (không có bước "bind" riêng). Token JWT ký bằng ES256 trả về, SDK verify chữ ký local bằng key đã pin, rồi lưu cache (mã hoá DPAPI trên Windows).</p>
+        <div class="cite">LicenseClient.kt:60-63 · DpapiFileStore.kt:51</div>
+      </div>
+
+      <div class="step by-api">
+        <div class="step-head"><span class="step-num">3</span><span class="step-title">Tính hạn token theo settings</span><span class="who api"><span class="avatar">S</span>skyapp-api</span></div>
+        <p><code>tokenLifetimeMinutes = Max(checkIntervalMinutes × 2, 30)</code> — luôn có sàn tối thiểu 30 phút dù interval set nhỏ cỡ nào. Dùng <code>license.BuyerOrganizationId</code> + <code>license.StoreId</code> để tra settings, <b>khác</b> <code>orgId</code> mà SDK dùng để gọi <code>/settings</code> (xem mục Lỗi thường gặp).</p>
+        <div class="cite">LicenseApiService.cs:385-391</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 id="phase-b"><span class="ph">B</span>Recheck định kỳ</h2>
+      <p class="h2-desc">Chạy hoàn toàn bên trong <code>licensecore.dll</code>, không đi qua code C# nào sau lần khởi động.</p>
+
+      <div class="step by-sdk">
+        <div class="step-head"><span class="step-num">1</span><span class="step-title">Scheduler tick</span><span class="who sdk"><span class="avatar">K</span>SDK</span></div>
+        <p><code>LicenseRecheckScheduler</code> chạy vòng lặp <code>delay(intervalMinutes) → onTick()</code> bên trong coroutine riêng — độc lập hoàn toàn với mọi code C#, <b>không log ra ngoài</b> bằng bất kỳ cách nào (chỉ có 1 dòng <code>println</code> không liên quan trong toàn SDK).</p>
+        <div class="cite">LicenseRecheckScheduler.kt:20-29</div>
+      </div>
+
+      <div class="step by-api">
+        <div class="step-head"><span class="step-num">2</span><span class="step-title">Introspect — luôn gọi mạng</span><span class="who api"><span class="avatar">S</span>skyapp-api</span></div>
+        <p>Mỗi tick <b>luôn</b> gọi <code>POST /token/introspect</code> để check <code>IsRevoked</code> — đây là bước duy nhất bắt được revoke kịp thời dù token local vẫn còn hạn.</p>
+        <div class="cite">LicenseRecheckLogic.kt:47</div>
+      </div>
+
+      <div class="step by-sdk">
+        <div class="step-head"><span class="step-num">3</span><span class="step-title">Giữ token hay refresh</span><span class="who sdk"><span class="avatar">K</span>SDK</span></div>
+        <p>Nếu còn hạn và chưa gần hết → giữ nguyên token, chỉ cập nhật timestamp. Nếu sắp hết hạn (&lt; <code>checkIntervalMinutes</code> phút nữa) → gọi lại <code>verify</code> lấy token mới (lúc này <code>deviceName=null</code> để không ghi đè nhãn admin đã đặt).</p>
+        <div class="cite">LicenseRecheckLogic.kt:76-85</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 id="phase-c"><span class="ph">C</span>Revoke bị phát hiện</h2>
+      <p class="h2-desc">Admin revoke license qua UI/API — độ trễ phát hiện phụ thuộc hoàn toàn vào <code>checkIntervalMinutes</code>, không phải thời gian thực.</p>
+
+      <div class="step by-api">
+        <div class="step-head"><span class="step-num">1</span><span class="step-title">RevokeLicense đánh dấu token</span><span class="who api"><span class="avatar">S</span>skyapp-api</span></div>
+        <p>Trước đây <code>RevokeLicense()</code> chỉ đổi <code>License.Status</code>, <b>không</b> đụng bảng <code>LicenseToken</code> — token đã cache vẫn pass introspect bình thường cho tới khi tự hết hạn (tối đa 30+ phút). Đã sửa: giờ gọi thêm <code>RevokeAllForLicense(id)</code> đánh dấu <code>IsRevoked=1</code> mọi token active của license đó.</p>
+        <div class="cite">LicenseApiService.cs:843-850 · LicenseTokenService.cs (RevokeAllForLicense)</div>
+      </div>
+
+      <div class="step by-sdk">
+        <div class="step-head"><span class="step-num">2</span><span class="step-title">Tick kế tiếp phát hiện</span><span class="who sdk"><span class="avatar">K</span>SDK</span></div>
+        <p><code>introspect</code> trả <code>isRevoked=true</code> → SDK clear cache, publish <code>Revoked</code> rồi ngay sau đó <code>Unlicensed</code> (vì cache rỗng).</p>
+        <div class="cite">LicenseRecheckLogic.kt:66-69</div>
+      </div>
+
+      <div class="step by-agent">
+        <div class="step-head"><span class="step-num">3</span><span class="step-title">Middleware chặn request</span><span class="who agent"><span class="avatar">T</span>TransporterAgent</span></div>
+        <p><code>LicenseGateMiddleware</code> đọc <code>GetState()</code> (không gọi mạng, chỉ đọc state đã publish) trên <b>mọi</b> request — trả <code>503 LICENSE_REQUIRED</code> ngay khi state không usable.</p>
+        <div class="cite">LicenseGateMiddleware.cs:44-53</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 id="phase-d"><span class="ph">D</span>Auto-retry activate <span style="font-size:11px;font-weight:600;color:var(--ok);background:var(--ok-bg);padding:2px 8px;border-radius:999px;margin-left:4px">mới thêm</span></h2>
+      <p class="h2-desc">Khoảng trống quan trọng: <code>licensecore.dll</code> chỉ verify lại token <i>đã có</i> trong cache — không bao giờ tự thử activate lại khi cache rỗng, kể cả khi license khả dụng trở lại.</p>
+
+      <div class="note danger">
+        <span class="ic">&#9888;</span>
+        <div class="note-body">
+          <b>Vấn đề gốc</b>
+          Sau khi license bị revoke và cache bị xoá, admin reactivate license xong — nhưng app đang chạy <b>vẫn kẹt mãi</b> ở <code>Unlicensed</code>. Không có restart thì không bao giờ tự phục hồi, vì <code>checkNow()</code> chỉ làm 2 việc: verify token cache cũ, hoặc publish thẳng <code>Unlicensed</code> nếu cache trống — không có nhánh "thử activate lại".
+        </div>
+      </div>
+
+      <div class="step by-agent">
+        <div class="step-head"><span class="step-num">1</span><span class="step-title">Timer độc lập phía app</span><span class="who agent"><span class="avatar">T</span>TransporterAgent</span></div>
+        <p>Thêm <code>System.Threading.Timer</code> trong <code>LicenseHostedService</code>, tick mỗi <code>RetryActivationIntervalMinutes</code> (mặc định 5 phút) — hoàn toàn tách biệt khỏi scheduler nội bộ của DLL.</p>
+        <div class="cite">LicenseHostedService.cs (OnRetryActivationTick)</div>
+      </div>
+
+      <div class="step by-agent">
+        <div class="step-head"><span class="step-num">2</span><span class="step-title">Chỉ retry khi cần</span><span class="who agent"><span class="avatar">T</span>TransporterAgent</span></div>
+        <p>Đọc <code>GetState()</code> — nếu <code>!IsUsable</code> và khác <code>NetworkRequired</code> (case đó DLL đã tự retry mỗi phút rồi) và có <code>LicenseKey</code> cấu hình → gọi lại <code>ActivateAsync()</code>.</p>
+        <div class="cite">LicenseHostedService.cs (ActivateIfNeeded)</div>
+      </div>
+
+      <div class="note ok">
+        <span class="ic">&#10003;</span>
+        <div class="note-body">
+          <b>Đã xác nhận bằng test thật</b>
+          Revoke license → agent log <code>INVALID (INACTIVE)</code> mỗi phút → admin reactivate → đúng tick kế tiếp log <code>VALID</code> — không restart agent.
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 id="phase-e"><span class="ph">E</span>Auto-fetch trusted signing key (TOFU)</h2>
+      <p class="h2-desc">Giải quyết vấn đề "con gà quả trứng": SDK cần public key để verify chữ ký, nhưng key chỉ tồn tại sau khi có request ký đầu tiên.</p>
+
+      <div class="step by-api">
+        <div class="step-head"><span class="step-num">1</span><span class="step-title">Backend tự bootstrap key</span><span class="who api"><span class="avatar">S</span>skyapp-api</span></div>
+        <p>Lần đầu tiên hệ thống cần ký token, <code>GetOrCreateActiveKey()</code> tự sinh keypair ECDSA P-256 mới (<code>kid="v1"</code>) nếu bảng <code>LicenseSigningKey</code> rỗng — không cần provisioning thủ công.</p>
+        <div class="cite">TokenSigningService.cs:135-161</div>
+      </div>
+
+      <div class="step by-api">
+        <div class="step-head"><span class="step-num">2</span><span class="step-title">Endpoint công khai lấy public key</span><span class="who api"><span class="avatar">S</span>skyapp-api</span></div>
+        <p><code>GET /api/licenses/signing-keys</code> (không cần auth) trả <code>{kid: publicKeyPem}</code> — chỉ public key, không bao giờ trả private key.</p>
+        <div class="cite">LicenseController.cs (GetTrustedSigningKeys)</div>
+      </div>
+
+      <div class="step by-agent">
+        <div class="step-head"><span class="step-num">3</span><span class="step-title">Fetch-và-pin lần đầu</span><span class="who agent"><span class="avatar">T</span>TransporterAgent</span></div>
+        <p>Nếu <code>TrustedSigningKeysDir</code> chưa có file <code>.pem</code> nào và <code>AutoFetchTrustedSigningKeys=true</code> → gọi endpoint trên, ghi <code>&lt;kid&gt;.pem</code> vào đĩa. <b>Chỉ fetch đúng 1 lần</b> — từ lần sau luôn dùng file đã pin, không tự fetch lại dù key đổi.</p>
+        <div class="cite">LicenseCoreService.cs (FetchAndPinTrustedSigningKeys)</div>
+      </div>
+
+      <div class="note warn">
+        <span class="ic">&#9888;</span>
+        <div class="note-body">
+          <b>Đánh đổi bảo mật có chủ đích</b>
+          Yếu hơn pin thủ công — lần fetch đầu tiên tin tưởng hoàn toàn kênh kết nối đó, giống SSH lần đầu connect. Vì vậy có cờ <code>AutoFetchTrustedSigningKeys</code>: <code>true</code> cho dev/staging (tiện), <code>false</code> cho production (bắt buộc ops tự đưa key vào, fail rõ ràng thay vì tự tin mạng).
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 id="phase-f"><span class="ph">F</span>DeviceName / DeviceAbout</h2>
+      <p class="h2-desc">Hai field tách biệt để admin tìm thiết bị dễ hơn khi cần release slot — <code>DeviceId</code> một mình là hash 64 ký tự, không ai đọc được.</p>
+
+      <table>
+        <tr><th>Field</th><th>Ai đặt</th><th>Mục đích</th></tr>
+        <tr><td><code>DeviceName</code></td><td>Người dùng/ops truyền vào lúc activate</td><td>Nhãn dễ đọc, vd "Quầy thu ngân 1" — SDK không bao giờ tự điền</td></tr>
+        <tr><td><code>DeviceAbout</code></td><td>SDK tự thu thập</td><td>Thông tin hệ thống (OS, model máy) — luôn gửi kèm mỗi lần activate/refresh</td></tr>
+      </table>
+
+      <div class="step by-api">
+        <div class="step-head"><span class="step-num">1</span><span class="step-title">API trả kèm danh sách thiết bị</span><span class="who api"><span class="avatar">S</span>skyapp-api</span></div>
+        <p><code>GET /api/licenses/{id}</code> giờ trả thêm <code>devices[]</code> gồm <code>deviceId, deviceName, deviceAbout, activatedDate, lastSeenDate</code> — chỉ ở API chi tiết, không thêm vào API danh sách (tránh N+1 query).</p>
+        <div class="cite">LicenseModelFactory.cs (PrepareLicenseModelAsync) · LicenseDeviceService.cs (GetByLicense)</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 id="manual-actions"><span class="ph">&#9998;</span>Thao tác người dùng cần làm</h2>
+      <p class="h2-desc">Toàn bộ luồng ở trên tự chạy — đây là những điểm duy nhất cần con người can thiệp.</p>
+
+      <div class="note ok">
+        <span class="ic">&#10003;</span>
+        <div class="note-body"><b>Vận hành bình thường</b> Không cần làm gì — activate, recheck, phát hiện revoke, tự phục hồi đều tự động.</div>
+      </div>
+
+      <h3>Khi admin muốn revoke license</h3>
+      <p>Gọi <code>POST /api/licenses/{id}/revoke</code> (cần session admin đăng nhập, kèm <code>reason</code>) — agent tự phát hiện trong tối đa 1 chu kỳ <code>checkIntervalMinutes</code>, không cần thao tác gì thêm phía agent.</p>
+
+      <h3>Khi admin muốn mở lại license đã revoke</h3>
+      <p>Gọi <code>POST /api/licenses/{id}/reactivate</code> — agent <b>tự</b> activate lại trong tối đa <code>RetryActivationIntervalMinutes</code> (mặc định 5 phút), <b>không cần restart</b>.</p>
+
+      <h3>Khi deploy môi trường mới (staging/production lần đầu) — chỉ 1 lần</h3>
+      <table>
+        <tr><th>AutoFetchTrustedSigningKeys</th><th>Việc cần làm</th></tr>
+        <tr><td><code>false</code> (khuyến nghị production)</td><td>Tự lấy <code>PublicKeyPem</code> (query DB hoặc gọi <code>GET /signing-keys</code> thủ công), đặt file <code>&lt;kid&gt;.pem</code> vào <code>TrustedSigningKeysDir</code> <b>trước khi</b> agent start lần đầu — nếu không mọi activation sẽ fail <code>TokenUntrusted</code> mãi mãi.</td></tr>
+        <tr><td><code>true</code> (dev/staging)</td><td>Không cần làm gì, agent tự fetch.</td></tr>
+      </table>
+
+      <h3>Khi đổi LicenseCheckIntervalMinutes</h3>
+      <table>
+        <tr><th>Cách đổi</th><th>Việc cần làm thêm</th></tr>
+        <tr><td>Qua API <code>POST /settings</code></td><td>Không cần gì — tự <code>ClearCacheAsync()</code>.</td></tr>
+        <tr><td>Sửa thẳng trong DB</td><td>Phải tự gọi lại <code>POST /settings</code> (dù giá trị không đổi) hoặc restart service để nạp lại cache RAM.</td></tr>
+      </table>
+
+      <h3>Khi cần release 1 thiết bị cụ thể (máy hỏng, đổi máy)</h3>
+      <p>Admin tra <code>devices[]</code> trong <code>GET /api/licenses/{id}</code> — dùng <code>deviceName</code>/<code>deviceAbout</code> để nhận diện đúng máy — rồi gọi <code>POST /{id}/devices/release</code>.</p>
+    </div>
+
+    <div class="section">
+      <h2 id="gotchas"><span class="ph">!</span>Lỗi thường gặp khi test</h2>
+
+      <h3>Key trên dev đổi liên tục khi deploy nhiều lần</h3>
+      <p>Mỗi lần dev database bị reset (migration chạy lại), bảng <code>LicenseSigningKey</code> trống → key <code>v1</code> mới được bootstrap với bytes khác hoàn toàn dù cùng tên <code>kid</code>. File <code>v1.pem</code> đã pin cục bộ sẽ lệch với key mới — phải xoá cả cache lẫn <code>v1.pem</code> rồi chạy lại.</p>
+
+      <h3>2 scope settings khác nhau cho cùng 1 license</h3>
+      <div class="note danger">
+        <span class="ic">&#9888;</span>
+        <div class="note-body">
+          <b>Dễ set sai mà không biết</b>
+          SDK gọi <code>GET /settings?orgId={config.orgId}&storeId={storeId}</code> để biết <code>checkIntervalMinutes</code> dùng cho scheduler. Nhưng lúc <b>tính hạn token thật</b>, backend lại tra theo <code>(license.BuyerOrganizationId, license.StoreId)</code> — nếu 2 orgId này khác nhau (license thuộc 1 tổ chức, app config 1 orgId khác), chỉnh setting ở orgId của app sẽ <b>không ảnh hưởng gì</b> tới hạn token thật.
+        </div>
+      </div>
+
+      <h3>Sửa setting thẳng trong DB không có hiệu lực ngay</h3>
+      <p><code>ISettingService</code> cache giá trị trong RAM của tiến trình backend. Sửa thẳng DB không trigger <code>ClearCacheAsync()</code> — phải gọi lại <code>POST /settings</code> (dù giá trị không đổi) hoặc restart service.</p>
+
+      <h3>Race condition ký token dưới tải đồng thời (đã sửa)</h3>
+      <p><code>CryptoProviderFactory</code> của <code>Microsoft.IdentityModel.Tokens</code> mặc định cache <code>SignatureProvider</code> theo key — nhưng code cũ dispose <code>ECDsa</code> ngay sau mỗi lần ký/verify, nên request đồng thời có thể lấy trúng provider đã cache với key bị dispose → <code>ObjectDisposedException</code> ngẫu nhiên (~1/3 request fail khi test). Đã sửa bằng <code>CacheSignatureProviders = false</code>.</p>
+      <div class="cite">TokenSigningService.cs (SignLicenseToken, ValidateSignature)</div>
+    </div>
+
+    <div class="section">
+      <h2 id="config"><span class="ph">⚙</span>Bảng tham số config</h2>
+      <table>
+        <tr><th>Tham số</th><th>Mặc định</th><th>Ý nghĩa</th></tr>
+        <tr><td><code>License.Enabled</code></td><td><code>false</code></td><td>Tắt hẳn toàn bộ luồng license (activate + middleware chặn)</td></tr>
+        <tr><td><code>License.AutoFetchTrustedSigningKeys</code></td><td><code>true</code></td><td>Tự fetch key lần đầu (TOFU) — tắt ở production</td></tr>
+        <tr><td><code>License.RetryActivationIntervalMinutes</code></td><td><code>5</code></td><td>Chu kỳ timer tự retry activate khi license không usable</td></tr>
+        <tr><td><code>licensesettings.licensecheckintervalminutes</code> (backend)</td><td><code>60</code></td><td>Chu kỳ recheck của SDK + hệ số tính hạn token (<code>×2</code>, sàn 30p)</td></tr>
+      </table>
+
+      <h2 id="sources"><span class="ph">§</span>Trích dẫn nguồn</h2>
+      <table>
+        <tr><th>Repo</th><th>File</th><th>Dùng để chứng minh</th></tr>
+        <tr><td>skytransporter</td><td><code>TransporterAgent/Services/Licensing/LicenseHostedService.cs</code></td><td>StartAsync, timer auto-retry, ActivateIfNeeded</td></tr>
+        <tr><td>skytransporter</td><td><code>TransporterAgent/Infrastructure/LicenseGateMiddleware.cs</code></td><td>Chặn HTTP theo state.IsUsable</td></tr>
+        <tr><td>skytransporter</td><td><code>TransporterAgent/Services/Licensing/LicenseCoreService.cs</code></td><td>FetchAndPinTrustedSigningKeys, LoadTrustedSigningKeys</td></tr>
+        <tr><td>skylicense-core-sdk</td><td><code>core/src/commonMain/kotlin/com/dcorp/licensecore/scheduler/LicenseRecheckScheduler.kt</code></td><td>Vòng lặp tick nền</td></tr>
+        <tr><td>skylicense-core-sdk</td><td><code>core/src/commonMain/kotlin/com/dcorp/licensecore/internal/LicenseRecheckLogic.kt</code></td><td>Logic introspect, giữ/refresh token, offline grace</td></tr>
+        <tr><td>skylicense-core-sdk</td><td><code>core/src/commonMain/kotlin/com/dcorp/licensecore/LicenseClient.kt</code></td><td>activate, checkNow, syncIntervalFromCache</td></tr>
+        <tr><td>skyapp-api</td><td><code>Presentation/Web.Api/Services/Licenses/LicenseApiService.cs</code></td><td>BuildVerifyResponse, RevokeLicense, tính tokenLifetimeMinutes</td></tr>
+        <tr><td>skyapp-api</td><td><code>Libraries/Service/LicenseSigningKeys/TokenSigningService.cs</code></td><td>Bootstrap key, ký/verify JWT, fix race condition</td></tr>
+        <tr><td>skyapp-api</td><td><code>Libraries/Service/LicenseTokens/LicenseTokenService.cs</code></td><td>RevokeAllForLicense</td></tr>
+        <tr><td>skyapp-api</td><td><code>Presentation/Web.Api/Factories/LicenseModelFactory.cs</code></td><td>Devices list trong API chi tiết license</td></tr>
+      </table>
+    </div>
+
+    <footer class="doc-footer">skylicense-core-sdk · docs/license-recheck-revoke-autoretry-flow.vi.html · generated 2026-10-16</footer>
+  </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+    securityLevel: 'loose',
+  });
+
+  var tocLinks = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var sections = tocLinks.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); }).filter(Boolean);
+  var railLinks = Array.prototype.slice.call(document.querySelectorAll('.rail a'));
+
+  function onScroll() {
+    var pos = window.scrollY + 120;
+    var current = sections[0];
+    sections.forEach(function (s) { if (s.offsetTop <= pos) current = s; });
+    tocLinks.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + current.id); });
+    railLinks.forEach(function (a) {
+      var id = a.getAttribute('href').slice(1);
+      var idx = sections.findIndex(function (s) { return s.id === id; });
+      var curIdx = sections.findIndex(function (s) { return s.id === current.id; });
+      a.classList.toggle('done', idx <= curIdx && idx >= 0);
+    });
+  }
+  document.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+</script>
+</body>
+</html>

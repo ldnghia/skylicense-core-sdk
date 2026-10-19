@@ -54,6 +54,10 @@ char *state_json = lc_activate(h, "THE-LICENSE-KEY");
 /* parse state_json (see licensecore.h's JSON shape), then: */
 lc_free_string(state_json);
 
+/* To also label this device for easier admin lookup, use lc_activate_with_device_name instead:
+ *   char *state_json = lc_activate_with_device_name(h, "THE-LICENSE-KEY", "Counter 1");
+ * Pass NULL as the last argument to behave exactly like lc_activate. */
+
 lc_start(h);   /* starts the periodic background re-check loop */
 /* ... app runs ... */
 lc_stop(h);
@@ -75,6 +79,7 @@ internal static class LicenseCore
 {
     [DllImport("licensecore.dll")] internal static extern IntPtr lc_create(string configJson);
     [DllImport("licensecore.dll")] internal static extern IntPtr lc_activate(IntPtr h, string licenseKey);
+    [DllImport("licensecore.dll")] internal static extern IntPtr lc_activate_with_device_name(IntPtr h, string licenseKey, string deviceName);
     [DllImport("licensecore.dll")] internal static extern IntPtr lc_get_state(IntPtr h);
     [DllImport("licensecore.dll")] internal static extern void lc_free_string(IntPtr s);
     [DllImport("licensecore.dll")] internal static extern void lc_destroy(IntPtr h);

@@ -7,6 +7,7 @@ import io.ktor.client.engine.HttpClientEngine
 public class PlatformModule(
     public val storage: SecureStorage,
     public val deviceIdProvider: DeviceIdProvider,
+    public val deviceAboutProvider: DeviceAboutProvider,
     public val httpEngine: HttpClientEngine,
 )
 

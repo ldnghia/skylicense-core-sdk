@@ -13,7 +13,12 @@ public data class ApiEnvelope<T>(
 )
 
 @Serializable
-public data class VerifyLicenseRequestDto(val licenseKey: String, val deviceId: String)
+public data class VerifyLicenseRequestDto(
+    val licenseKey: String,
+    val deviceId: String,
+    val deviceName: String? = null,
+    val deviceAbout: String? = null,
+)
 
 @Serializable
 public data class FindLicenseRequestDto(
@@ -22,6 +27,8 @@ public data class FindLicenseRequestDto(
     val accProductId: Int? = null,
     val storeId: Int,
     val deviceId: String,
+    val deviceName: String? = null,
+    val deviceAbout: String? = null,
 )
 
 @Serializable

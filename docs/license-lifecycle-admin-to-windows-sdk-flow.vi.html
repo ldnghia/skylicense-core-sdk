@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vòng đời license: từ Admin tạo đến SDK verify trên Windows</title>
+<style>
+  :root {
+    --bg: #ffffff; --bg-alt: #f6f7f9; --bg-raised: #ffffff; --border: #e3e6eb; --border-strong: #cfd4dc;
+    --text: #1a1f29; --text-muted: #5b6270; --text-faint: #8a8f99;
+    --accent: #185fa5; --accent-bg: #e6f1fb; --accent-strong: #0c447c;
+    --ok: #0f6e56; --ok-bg: #e1f5ee;
+    --warn: #854f0b; --warn-bg: #faeeda;
+    --danger: #a32d2d; --danger-bg: #fcebeb;
+    --code-bg: #10131a; --code-text: #d7deea; --mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --c-admin: #534ab7; --c-admin-bg: #eeedfe; --c-admin-strong: #26215c;
+    --c-api: #185fa5; --c-api-bg: #e6f1fb; --c-api-strong: #042c53;
+    --c-app: #0f6e56; --c-app-bg: #e1f5ee; --c-app-strong: #04342c;
+    --c-user: #993c1d; --c-user-bg: #faece7; --c-user-strong: #4a1b0c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11141a; --bg-alt: #171b22; --bg-raised: #1b202a; --border: #262c36; --border-strong: #353c48;
+      --text: #e7eaf0; --text-muted: #9aa2b1; --text-faint: #6b7280;
+      --accent: #6cb0ef; --accent-bg: #16293c; --accent-strong: #b5d4f4;
+      --ok: #5dcaa5; --ok-bg: #0e2a22;
+      --warn: #f2c177; --warn-bg: #3a2c0c;
+      --danger: #f09595; --danger-bg: #3a1414;
+      --code-bg: #0a0d13; --code-text: #cfd8e6;
+      --c-admin: #afa9ec; --c-admin-bg: #2a2662; --c-admin-strong: #cecbf6;
+      --c-api: #85b7eb; --c-api-bg: #0c3457; --c-api-strong: #b5d4f4;
+      --c-app: #5dcaa5; --c-app-bg: #0e2a22; --c-app-strong: #9fe1cb;
+      --c-user: #f0997b; --c-user-bg: #3d2112; --c-user-strong: #f5c4b3;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.65; font-size: 16px; }
+  .layout { display: flex; max-width: 1320px; margin: 0 auto; }
+
+  nav.toc { position: sticky; top: 0; align-self: flex-start; width: 268px; flex-shrink: 0; height: 100vh; overflow-y: auto; padding: 28px 14px 60px; border-right: 1px solid var(--border); }
+  .toc-brand { font-size: 13px; font-weight: 600; color: var(--text-faint); padding: 0 10px 18px; letter-spacing: .02em; }
+  nav.toc a { display: flex; align-items: center; gap: 9px; color: var(--text-muted); text-decoration: none; font-size: 13.5px; padding: 6px 10px; border-radius: 7px; border-left: 2px solid transparent; transition: background .12s, color .12s; }
+  nav.toc a:hover { background: var(--bg-alt); color: var(--text); }
+  nav.toc a.active { background: var(--accent-bg); color: var(--accent-strong); border-left-color: var(--accent); font-weight: 600; }
+  nav.toc .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; }
+  nav.toc a.active .dot { background: var(--accent); }
+  nav.toc .toc-title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); padding: 0 10px; margin: 22px 0 6px; font-weight: 600; }
+  nav.toc .toc-title:first-of-type { margin-top: 0; }
+
+  main { flex: 1; min-width: 0; padding: 0 0 140px; }
+
+  .hero { padding: 56px 56px 32px; border-bottom: 1px solid var(--border); }
+  .eyebrow { font-size: 12.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+  h1 { font-size: 30px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 10px; line-height: 1.3; }
+  .subtitle { color: var(--text-muted); font-size: 16px; max-width: 780px; margin: 0 0 18px; }
+  .meta { color: var(--text-faint); font-size: 13px; }
+  .meta code { font-size: 12px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+  .legend-chip { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; padding: 6px 12px 6px 8px; border-radius: 999px; border: 1px solid var(--border); }
+  .legend-chip .avatar { width: 20px; height: 20px; }
+
+  .tldr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 26px; }
+  .tldr-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--bg-alt); }
+  .tldr-card .label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-faint); margin-bottom: 6px; }
+  .tldr-card .value { font-size: 14px; font-weight: 500; color: var(--text); }
+
+  .rail-wrap { padding: 22px 56px; border-bottom: 1px solid var(--border); background: var(--bg-alt); overflow-x: auto; }
+  .rail { display: flex; align-items: center; min-width: 760px; }
+  .rail a { display: flex; flex-direction: column; align-items: center; gap: 6px; text-decoration: none; color: var(--text-muted); flex: 1; position: relative; }
+  .rail a .ring { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border-strong); display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 700; background: var(--bg); color: var(--text-muted); transition: all .15s; }
+  .rail a:hover .ring { border-color: var(--accent); color: var(--accent); }
+  .rail a .lbl { font-size: 11.5px; font-weight: 500; text-align: center; max-width: 98px; }
+  .rail a:not(:last-child)::after { content: ""; position: absolute; top: 15px; left: calc(50% + 21px); width: calc(100% - 42px); height: 2px; background: var(--border-strong); }
+  .rail a.done .ring { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .rail a.done:not(:last-child)::after { background: var(--accent); }
+
+  .section { padding: 0 56px; }
+  h2 { font-size: 21px; font-weight: 650; margin: 56px 0 6px; scroll-margin-top: 20px; display: flex; align-items: center; gap: 10px; }
+  h2 .ph { font-size: 12px; font-weight: 700; color: #fff; background: var(--accent); border-radius: 7px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .h2-desc { color: var(--text-muted); font-size: 14.5px; margin: 0 0 20px; max-width: 780px; }
+  h3 { font-size: 16px; font-weight: 650; margin: 26px 0 8px; scroll-margin-top: 20px; }
+  p { color: var(--text); }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-faint); font-weight: 650; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; background: var(--bg-alt); }
+  tr:hover td { background: var(--bg-alt); }
+
+  code { font-family: var(--mono); font-size: 12.8px; background: var(--bg-alt); border: 1px solid var(--border); border-radius: 4px; padding: 1.5px 5px; }
+  pre { background: var(--code-bg); color: var(--code-text); border-radius: 10px; padding: 16px 18px; overflow-x: auto; font-size: 12.8px; line-height: 1.6; border: 1px solid #000; }
+  pre code { background: none; border: none; padding: 0; color: inherit; }
+
+  .step { border: 1px solid var(--border); border-left-width: 3px; border-radius: 12px; padding: 18px 20px; margin: 14px 0; background: var(--bg-raised); }
+  .step-head { display: flex; align-items: center; gap: 11px; margin-bottom: 10px; }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--bg-alt); color: var(--text-muted); font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid var(--border-strong); }
+  .step-title { font-weight: 650; font-size: 15px; }
+  .who { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 650; border-radius: 999px; padding: 3px 10px 3px 4px; margin-left: auto; white-space: nowrap; }
+  .avatar { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 800; color: #fff; flex-shrink: 0; }
+  .who.admin { background: var(--c-admin-bg); color: var(--c-admin-strong); } .who.admin .avatar { background: var(--c-admin); }
+  .who.api   { background: var(--c-api-bg);   color: var(--c-api-strong); }   .who.api .avatar   { background: var(--c-api); }
+  .who.app   { background: var(--c-app-bg);   color: var(--c-app-strong); }   .who.app .avatar   { background: var(--c-app); }
+  .who.user  { background: var(--c-user-bg);  color: var(--c-user-strong); } .who.user .avatar  { background: var(--c-user); }
+  .step.by-admin { border-left-color: var(--c-admin); }
+  .step.by-api { border-left-color: var(--c-api); }
+  .step.by-app { border-left-color: var(--c-app); }
+  .step.by-user { border-left-color: var(--c-user); }
+
+  .note { border-radius: 10px; padding: 13px 16px; font-size: 13.5px; margin: 16px 0; border: 1px solid; display: flex; gap: 10px; }
+  .note .ic { font-size: 15px; line-height: 1.4; flex-shrink: 0; }
+  .note.info { background: var(--accent-bg); border-color: var(--accent); }
+  .note.ok { background: var(--ok-bg); border-color: var(--ok); }
+  .note.warn { background: var(--warn-bg); border-color: var(--warn); }
+  .note.danger { background: var(--danger-bg); border-color: var(--danger); }
+  .note b { display: block; margin-bottom: 3px; }
+  .note-body { flex: 1; }
+  .cite { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); margin-top: 4px; }
+
+  .badge { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; padding: 2px 8px; border-radius: 5px; }
+  .badge.get { background: var(--ok-bg); color: var(--ok); }
+  .badge.post { background: var(--accent-bg); color: var(--accent); }
+  .badge.put { background: var(--warn-bg); color: var(--warn); }
+  .badge.delete { background: var(--danger-bg); color: var(--danger); }
+
+  .mermaid { background: var(--bg-alt); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin: 18px 0; }
+  .endpoint-line { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin-bottom: 10px; }
+
+  footer.doc-footer { padding: 40px 56px; color: var(--text-faint); font-size: 12.5px; border-top: 1px solid var(--border); margin-top: 40px; }
+
+  @media (max-width: 980px) { .layout { display: block; } nav.toc { display: none; } .hero, .rail-wrap, .section { padding-left: 24px; padding-right: 24px; } .tldr { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc" id="toc">
+    <div class="toc-brand">LicenseCore SDK · Tài liệu</div>
+    <div class="toc-title">Tổng quan</div>
+    <a href="#overview"><span class="dot"></span>Phạm vi &amp; các bên</a>
+    <a href="#sequence"><span class="dot"></span>Luồng tổng thể</a>
+    <div class="toc-title">Phía Admin · skyapp-api</div>
+    <a href="#phase-a"><span class="dot"></span>A · Entity bắt buộc</a>
+    <a href="#phase-b"><span class="dot"></span>B · Tạo license</a>
+    <a href="#phase-c"><span class="dot"></span>C · Settings org/store</a>
+    <a href="#phase-g"><span class="dot"></span>G · Thao tác vận hành</a>
+    <div class="toc-title">Phía Client · skylicense-core-sdk</div>
+    <a href="#phase-d"><span class="dot"></span>D · Tích hợp SDK</a>
+    <a href="#phase-e"><span class="dot"></span>E · Người dùng kích hoạt</a>
+    <a href="#phase-f"><span class="dot"></span>F · Recheck &amp; offline</a>
+    <div class="toc-title">Tham chiếu</div>
+    <a href="#error-codes"><span class="dot"></span>Mã lỗi → trạng thái SDK</a>
+    <a href="#security"><span class="dot"></span>Ghi chú bảo mật</a>
+    <a href="#sources"><span class="dot"></span>Trích dẫn nguồn</a>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Vòng đời license · Target Windows</div>
+      <h1>Từ lúc admin tạo license đến khi SDK verify</h1>
+      <p class="subtitle">Mô tả chi tiết từng bước, ai làm, gọi API nào — từ lúc admin Dcorp tạo license trong <code>skyapp-api</code> đến khi app desktop Windows (qua <code>skylicense-core-sdk</code>) xác minh và thực thi license đó.</p>
+      <p class="meta">Đã đối chiếu với mã nguồn thật của skyapp-api (HEAD) và skylicense-core-sdk <code>core/src/commonMain</code> ngày 2026-10-14. Mọi khẳng định đều trích <code>file:line</code> — xem mục <a href="#sources">Trích dẫn nguồn</a>. Tên field/endpoint/hàm giữ nguyên tiếng Anh để khớp mã nguồn.</p>
+
+      <div class="legend">
+        <span class="legend-chip"><span class="avatar" style="background:var(--c-admin)">A</span>Admin — back office Dcorp</span>
+        <span class="legend-chip"><span class="avatar" style="background:var(--c-api)">S</span>skyapp-api — backend</span>
+        <span class="legend-chip"><span class="avatar" style="background:var(--c-app)">K</span>skylicense-core-sdk — client</span>
+        <span class="legend-chip"><span class="avatar" style="background:var(--c-user)">U</span>Người dùng cuối</span>
+      </div>
+
+      <div class="tldr">
+        <div class="tldr-card"><div class="label">License key</div><div class="value">Luôn do server sinh (GUID) — admin không tự nhập</div></div>
+        <div class="tldr-card"><div class="label">Mô hình tin cậy</div><div class="value">Không có JWKS — public key được nhúng sẵn vào app lúc build</div></div>
+        <div class="tldr-card"><div class="label">Lỗ hổng phân quyền</div><div class="value">Không tìm thấy auth nào trên endpoint admin lẫn SDK — xem mục Bảo mật</div></div>
+      </div>
+    </div>
+
+    <div class="rail-wrap">
+      <div class="rail">
+        <a href="#phase-a" class="r-link"><span class="ring">A</span><span class="lbl">Entity bắt buộc</span></a>
+        <a href="#phase-b" class="r-link"><span class="ring">B</span><span class="lbl">Tạo license</span></a>
+        <a href="#phase-c" class="r-link"><span class="ring">C</span><span class="lbl">Settings org</span></a>
+        <a href="#phase-d" class="r-link"><span class="ring">D</span><span class="lbl">Tích hợp SDK</span></a>
+        <a href="#phase-e" class="r-link"><span class="ring">E</span><span class="lbl">Kích hoạt</span></a>
+        <a href="#phase-f" class="r-link"><span class="ring">F</span><span class="lbl">Vòng recheck</span></a>
+        <a href="#phase-g" class="r-link"><span class="ring">G</span><span class="lbl">Thao tác vận hành</span></a>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 id="overview"><span class="ph">i</span>Phạm vi &amp; các bên liên quan</h2>
+      <div class="note info">
+        <span class="ic">&#9432;</span>
+        <div class="note-body">
+          <b>Hai vùng tin cậy hoàn toàn tách biệt</b>
+          Mọi thứ thuộc "Phía Admin" diễn ra bên trong skyapp-api, do nhân viên Dcorp vận hành, không
+          bao giờ chạm trực tiếp vào SDK. Mọi thứ thuộc "Phía Client" chạy trên máy người dùng cuối và
+          chỉ bao giờ thấy HTTP API công khai — không bao giờ thấy database, không bao giờ có
+          credential admin. Thứ duy nhất đi qua ranh giới này là license key (gửi cho user ngoài
+          luồng, vd qua email sau khi mua) và JWT đã ký mà SDK nhận từ <code>/verify</code>.
+        </div>
+      </div>
+
+      <h2 id="sequence"><span class="ph">⇄</span>Luồng tổng thể (sequence)</h2>
+      <p class="h2-desc">Toàn bộ vòng đời trong một hình — thiết lập một lần, lần kích hoạt đầu tiên, vòng lặp recheck nền, và một thao tác admin xảy ra giữa chừng.</p>
+      <div class="mermaid">
+sequenceDiagram
+    participant Admin as Admin (Dcorp)
+    participant API as skyapp-api
+    participant App as App Windows<br/>(licensecore.dll)
+    participant User as Người dùng cuối
+
+    Note over Admin,API: Phase A+B — thiết lập một lần
+    Admin->>API: POST /api/licenses (tạo mới)
+    API-->>Admin: licenseKey (GUID do server sinh)
+    Admin->>API: POST /api/licenses/settings (allowOffline, checkInterval)
+    Admin->>User: gửi licenseKey (email/portal, ngoài luồng)
+
+    Note over App,API: Phase D+E — lần chạy đầu tiên
+    App->>App: lc_create(configJson) — public key trusted đã nhúng sẵn
+    User->>App: nhập licenseKey
+    App->>API: POST /api/licenses/verify {licenseKey, deviceId}
+    API-->>App: {licenseToken (JWT ES256), licenseKey, statusText, expiryDate, maxDevice}
+    App->>App: xác minh chữ ký + claims JWT cục bộ
+    App->>API: GET /api/licenses/settings?orgId&storeId
+    API-->>App: {allowOffline, licenseCheckIntervalMinutes}
+    App->>App: lưu cache token + info, state = Valid(Online)
+
+    loop mỗi checkIntervalMinutes
+        App->>API: POST /api/licenses/introspect {token}
+        alt bị thu hồi
+            API-->>App: isRevoked=true
+            App->>App: xoá cache, state = Revoked
+        else sắp hết hạn
+            API-->>App: isExpired hoặc gần exp
+            App->>API: POST /api/licenses/verify (refresh)
+            API-->>App: licenseToken mới
+        else còn hạn, chưa cần refresh
+            API-->>App: isValid=true
+            App->>App: giữ nguyên token cache
+        else mất mạng
+            App->>App: OfflineGracePolicy quyết định<br/>Valid(Offline) hoặc NetworkRequired
+        end
+    end
+
+    Note over Admin,API: Bất kỳ lúc nào sau khi phát hành
+    Admin->>API: POST /api/licenses/{id}/revoke
+    API-->>App: lần introspect kế tiếp báo isRevoked=true
+      </div>
+
+      <h2 id="phase-a"><span class="ph">A</span>Các entity bắt buộc có trước</h2>
+      <p class="h2-desc">License không thể tạo độc lập — nó tham chiếu tới các entity phải tồn tại sẵn. Các entity này được thiết lập một lần cho mỗi khách hàng/sản phẩm của Dcorp, không phải mỗi license.</p>
+      <div class="mermaid">
+graph LR
+    Org["Organization<br/>(org người mua)"] --> Lic["License"]
+    AppReg["ApplicationRegister<br/>OrgId + AppId + SecretKey"] --> Lic
+    AccProd["AccProduct"] --> Lic
+    Store["Store"] --> Lic
+      </div>
+      <table>
+        <tr><th>Entity</th><th>Vai trò</th><th>Cách resolve</th></tr>
+        <tr><td><code>ApplicationRegister</code></td><td>Gắn một org với một app đã đăng ký (<code>OrgId</code>+<code>AppId</code>), chứa <code>SecretKey</code> của app</td><td><code>_applicationRegister.GetByOrgAndAppId(orgId, appId)</code> — lỗi <code>APPLICATION_NOT_REGISTERED</code> nếu thiếu</td></tr>
+        <tr><td><code>AccProduct</code></td><td>Sản phẩm/SKU mà license cấp quyền truy cập</td><td><code>AccProductId</code> trên license</td></tr>
+        <tr><td><code>Store</code></td><td>Kênh bán hàng/cửa hàng nơi license được bán</td><td><code>StoreId</code> trên license</td></tr>
+        <tr><td>Buyer organization</td><td>Org khách hàng sở hữu license này</td><td><code>BuyerOrganizationId</code> trên license</td></tr>
+      </table>
+      <p class="cite">License.cs:5-24 · ApplicationRegister.cs · AccProduct.cs · LicenseApiService.cs:227 (resolve), LicenseDefault.cs:29-36 (find request)</p>
+
+      <h2 id="phase-b"><span class="ph">B</span>Admin tạo license</h2>
+      <div class="step by-admin">
+        <div class="step-head"><div class="step-num">1</div><div class="step-title">Admin điền form tạo mới</div><div class="who admin"><span class="avatar">A</span>Admin</div></div>
+        <div class="endpoint-line"><span class="badge post">POST</span><code>/api/licenses</code><span style="color:var(--text-faint)">→ LicenseController.Create</span></div>
+        <table>
+          <tr><th>Field</th><th>Kiểu</th><th>Ghi chú</th></tr>
+          <tr><td><code>ApplicationRegisterId</code></td><td>int</td><td>Resolve ra org + app</td></tr>
+          <tr><td><code>AccProductId</code></td><td>int</td><td>Sản phẩm được cấp license</td></tr>
+          <tr><td><code>StoreId</code></td><td>int</td><td>Kênh bán hàng</td></tr>
+          <tr><td><code>BuyerOrganizationId</code></td><td>int</td><td>Org khách hàng</td></tr>
+          <tr><td><code>LicenseKey</code></td><td>string</td><td><b>Bị bỏ qua khi tạo</b> — luôn do server sinh</td></tr>
+          <tr><td><code>LicenseTypeId</code></td><td>enum</td><td><code>Lifetime=1, Cloud=2, Trial=3, Free=4</code></td></tr>
+          <tr><td><code>DurationMonths</code></td><td>int</td><td>Mặc định 1; <b>bắt buộc ≥1</b> khi type là Cloud</td></tr>
+          <tr><td><code>ActivationDate</code> / <code>ExpiryDate</code></td><td>date?</td><td>Tuỳ chọn lúc tạo; tự tính sau cho Cloud khi kích hoạt (bước 6)</td></tr>
+          <tr><td><code>MaxDevice</code></td><td>int</td><td>Giới hạn số thiết bị, kiểm bởi <code>/verify</code>/<code>/find</code></td></tr>
+          <tr><td><code>IsTrial</code> / <code>TrialDays</code></td><td>bool / int</td><td>Thông tin dùng thử</td></tr>
+          <tr><td><code>SaleOrderId</code> / <code>SaleOrderNumber</code></td><td>int? / string</td><td>Liên kết về đơn hàng thương mại</td></tr>
+        </table>
+        <p class="cite">LicenseController.cs:43-49 · LicenseApiService.cs:410-445 (CreateLicense) · LicenseModel.cs:91-121 · LicenseStatus.cs:9-15 (LicenseTypeEnum)</p>
+      </div>
+      <div class="step by-api">
+        <div class="step-head"><div class="step-num">2</div><div class="step-title">Backend tự sinh license key</div><div class="who api"><span class="avatar">S</span>skyapp-api</div></div>
+        <pre><code>license.LicenseKey = Guid.NewGuid().ToString();</code></pre>
+        <p>Luôn là GUID mới — không bao giờ do admin tự đặt, không có định dạng checksum/prefix riêng.</p>
+        <p class="cite">LicenseApiService.cs:421</p>
+      </div>
+      <div class="note warn">
+        <span class="ic">&#9888;</span>
+        <div class="note-body">
+          <b>Trạng thái lúc tạo</b>
+          License được tạo với <code>Status</code> theo giá trị gửi lên (thường là <code>Draft(1)</code>
+          hoặc <code>Inactive(2)</code>) — <code>Active(3)</code> mới là điều kiện để
+          <code>/verify</code> và <code>/find</code> của SDK cấp token. Admin thường set
+          <code>Status=Active</code> ngay lúc tạo hoặc qua endpoint update chung trước khi giao key
+          cho khách hàng.
+        </div>
+      </div>
+
+      <h2 id="phase-c"><span class="ph">C</span>Admin cấu hình settings theo org/store</h2>
+      <p class="h2-desc">Hai giá trị này điều khiển <code>OfflineGracePolicy</code> và <code>LicenseRecheckScheduler</code> của SDK — chúng <b>không</b> thuộc về từng license riêng lẻ, mà scope theo org (có thể override theo từng store).</p>
+      <table>
+        <tr><th>Endpoint</th><th>Field</th><th>SDK dùng để làm gì</th></tr>
+        <tr><td><span class="badge get">GET</span>/<span class="badge post">POST</span> <code>/api/licenses/settings?orgId=&amp;storeId=</code></td><td><code>AllowOffline</code> (+ <code>_OverrideForStore</code>)</td><td><code>OfflineGracePolicy.decide(allowOffline, ...)</code></td></tr>
+        <tr><td>cùng endpoint</td><td><code>LicenseCheckIntervalMinutes</code> (+ <code>_OverrideForStore</code>)</td><td>chu kỳ tick của scheduler, và thời hạn token = <code>max(2×interval, 30)</code> phút</td></tr>
+      </table>
+      <p class="cite">LicenseSettingController.cs:22-34 · LicenseSettingModel.cs:6-13 · LicenseSettings.cs:9 · LicenseApiService.cs:386-387 (công thức thời hạn token)</p>
+      <div class="note info">
+        <span class="ic">&#9432;</span>
+        <div class="note-body">
+          <b>Endpoint anonymous</b>
+          <code>LicenseSettingController</code> được đánh dấu rõ <code>[AllowAnonymous]</code> — SDK
+          gọi thẳng endpoint này (không cần credential admin), dùng chung bề mặt public mà app người
+          dùng cuối có quyền truy cập. Đây là thiết kế có chủ đích: SDK cần các giá trị này để quyết
+          định hành vi offline mà không cần round-trip tới hệ thống auth mà nó không có credential.
+        </div>
+      </div>
+
+      <h2 id="phase-d"><span class="ph">D</span>Tích hợp SDK vào app Windows</h2>
+      <p class="h2-desc">Việc này diễn ra một lần, lúc Dcorp build app — không phải cho từng người dùng cuối.</p>
+      <div class="step by-app">
+        <div class="step-head"><div class="step-num">1</div><div class="step-title">Lấy public key dùng để ký (trusted signing key)</div><div class="who app"><span class="avatar">K</span>Dev Dcorp</div></div>
+        <p>skyapp-api <b>không có endpoint JWKS/public-key discovery</b> — signing key được tự động
+        bootstrap riêng theo từng môi trường ở phía server. Dcorp phải lấy public key hiện tại ngoài
+        luồng (từ đội ops) và nhúng vào config của app, gắn với <code>kid</code> (key version) để khi
+        xoay key không làm hỏng các bản build đã phát hành.</p>
+        <p class="cite">TokenSigningService.cs:54-77,113,117 · docs/ops-signing-keys-and-pins-runbook.md</p>
+      </div>
+      <div class="step by-app">
+        <div class="step-head"><div class="step-num">2</div><div class="step-title">Gọi <code>lc_create</code> một lần, lúc khởi động process</div><div class="who app"><span class="avatar">K</span>App Windows</div></div>
+        <pre><code>const char *config_json =
+    "{\"baseUrl\":\"https://your-skyapp-api-host\",\"orgId\":123,"
+    "\"appSalt\":\"a-stable-per-app-secret\","
+    "\"trustedSigningKeys\":{\"v1\":\"-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\"}}";
+
+lc_handle h = lc_create(config_json);</code></pre>
+        <p><code>orgId</code> phải khớp với org đã dùng ở Phase C để set settings
+        (<code>BuyerOrganizationId</code>) — lệch org nghĩa là SDK đọc nhầm
+        <code>allowOffline</code>/interval của org khác. <code>appSalt</code> là secret cố định
+        riêng của từng app, được hash cùng raw device id của platform
+        (<code>HKLM\...\MachineGuid</code> trên Windows) trước khi gửi lên backend — backend không
+        bao giờ thấy raw hardware id.</p>
+        <p class="cite">docs/integration-guide-windows.md · LicenseConfig.kt:8-26 · DeviceIdHasher.kt</p>
+      </div>
+      <div class="note danger">
+        <span class="ic">&#9888;</span>
+        <div class="note-body">
+          <b>Không bao giờ gọi hàm <code>lc_*</code> có network từ UI thread</b>
+          <code>lc_activate</code>/<code>lc_check_now</code>/<code>lc_deactivate</code> có thể block
+          tới ~45s (3 lần retry × timeout 15s). Chỉ <code>lc_get_state</code> là non-blocking.
+        </div>
+      </div>
+
+      <h2 id="phase-e"><span class="ph">E</span>Người dùng cuối kích hoạt</h2>
+      <div class="step by-user">
+        <div class="step-head"><div class="step-num">1</div><div class="step-title">User nhập license key do Dcorp gửi</div><div class="who user"><span class="avatar">U</span>Người dùng</div></div>
+        <p>Chính là GUID từ Phase B, được gửi ngoài luồng (email, customer portal) — không có gì
+        trong repo này tự động hoá việc giao key.</p>
+      </div>
+      <div class="step by-app">
+        <div class="step-head"><div class="step-num">2</div><div class="step-title">SDK hash device id rồi gọi verify</div><div class="who app"><span class="avatar">K</span>SDK</div></div>
+        <div class="endpoint-line"><span class="badge post">POST</span><code>/api/licenses/verify</code></div>
+        <p>Lệnh gọi này cũng <b>tự động bind thiết bị này</b> vào license (chiếm 1 slot) nếu chưa
+        bind; lần gọi thứ hai từ thiết bị đã bind sẽ được xử lý như refresh, không phải bind mới.</p>
+        <p class="cite">LicenseClient.kt:53-58 (activate) · LicenseApiService.kt (verify)</p>
+      </div>
+      <div class="step by-api">
+        <div class="step-head"><div class="step-num">3</div><div class="step-title">Backend phát hành JWT đã ký</div><div class="who api"><span class="avatar">S</span>skyapp-api</div></div>
+        <p>ES256, <code>iss=skyapp-license-engine</code>, claims <code>jti, lid, lk, did, status,
+        exp_date, max_device</code>, header <code>kid=KeyVersion</code>. Thời hạn =
+        <code>max(2 × LicenseCheckIntervalMinutes, 30)</code> phút.</p>
+        <p class="cite">TokenSigningService.cs:54-77 · LicenseApiService.cs:384-388</p>
+      </div>
+      <div class="step by-app">
+        <div class="step-head"><div class="step-num">4</div><div class="step-title">SDK xác minh token <i>cục bộ</i> trước khi tin bất cứ gì</div><div class="who app"><span class="avatar">K</span>SDK</div></div>
+        <p>Kiểm chữ ký ES256 dựa vào <code>trustedSigningKeys[kid]</code> từ config riêng của app
+        (không bao giờ fetch qua mạng), sau đó kiểm <code>exp</code>, <code>iss</code>, và claim
+        <code>did</code> của token có khớp device id đã hash của máy này không. Không bước nào
+        trước bước này được tin.</p>
+        <p class="cite">LicenseTokenVerifier.kt</p>
+      </div>
+      <div class="step by-app">
+        <div class="step-head"><div class="step-num">5</div><div class="step-title">SDK lấy settings của org rồi lưu toàn bộ vào cache</div><div class="who app"><span class="avatar">K</span>SDK</div></div>
+        <div class="endpoint-line"><span class="badge get">GET</span><code>/api/licenses/settings?orgId=</code></div>
+        <p>Lưu token + <code>LicenseInfo</code> + <code>allowOffline</code> + <code>checkIntervalMinutes</code>
+        vào secure storage của platform (DPAPI trên Windows, user-scope). Nếu lệnh gọi phụ này thất
+        bại, việc kích hoạt vẫn thành công bằng giá trị mặc định của backend
+        (<code>allowOffline=true</code>, interval=60 phút) thay vì fail toàn bộ chỉ vì một bước đọc
+        phụ.</p>
+        <p class="cite">LicenseVerifyHandler.kt:36-75 · CachedLicenseRecord.kt</p>
+      </div>
+      <div class="step by-app">
+        <div class="step-head"><div class="step-num">6</div><div class="step-title">SDK phát ra trạng thái <code>Valid(Online)</code></div><div class="who app"><span class="avatar">K</span>SDK</div></div>
+        <p>App Windows đọc lại qua <code>lc_get_state</code> (non-blocking) hoặc qua
+        <code>LicenseStateListener</code>/<code>StateFlow</code> tương ứng, rồi mở khoá tính năng mà
+        license cho phép.</p>
+      </div>
+
+      <h2 id="phase-f"><span class="ph">F</span>Tái kiểm tra định kỳ &amp; offline grace</h2>
+      <p class="h2-desc">Sau khi gọi <code>lc_start</code>, scheduler của SDK tick mỗi <code>checkIntervalMinutes</code> và chạy <code>checkNow()</code>:</p>
+      <table>
+        <tr><th>Kết quả introspect</th><th>SDK xử lý</th></tr>
+        <tr><td><code>isRevoked=true</code></td><td>Xoá cache ngay → <code>Revoked</code> (thiết bị bị release/token bị thu hồi phía server, có thể do admin thao tác ở Phase G)</td></tr>
+        <tr><td><code>isExpired</code> hoặc thời gian còn lại &lt; 1 interval</td><td>Gọi lại <code>/verify</code> để refresh token (cùng luồng với Phase E)</td></tr>
+        <tr><td>Vẫn hợp lệ và còn hạn dùng</td><td>Giữ nguyên token cache, chỉ cập nhật mốc thời gian check online gần nhất</td></tr>
+        <tr><td>Mất mạng</td><td><code>ClockRollbackGuard</code> kiểm tra đồng hồ hệ thống có bị tua lùi không, rồi <code>OfflineGracePolicy</code> quyết định <code>Valid(Offline, graceUntil=token.exp)</code> hoặc <code>NetworkRequired</code></td></tr>
+      </table>
+      <p class="cite">LicenseRecheckLogic.kt:30-101 · OfflineGracePolicy.kt · ClockRollbackGuard.kt</p>
+
+      <h2 id="phase-g"><span class="ph">G</span>Thao tác vận hành sau khi phát hành</h2>
+      <p class="h2-desc">Mọi thứ dưới đây có thể xảy ra bất kỳ lúc nào sau Phase B, hoàn toàn bên trong skyapp-api, không cần phối hợp gì với app Windows — SDK chỉ biết được vào lần <code>introspect</code> kế tiếp (Phase F) hoặc khi gọi <code>checkNow()</code> thủ công.</p>
+      <table>
+        <tr><th>Thao tác admin</th><th>Endpoint</th><th>Điều kiện</th><th>SDK thấy gì kế tiếp</th></tr>
+        <tr><td>Gia hạn (Renew)</td><td><span class="badge post">POST</span> <code>/api/licenses/{id}/renew</code> <code>{DurationMonths}</code></td><td>License phải đang <code>Active</code></td><td><code>exp_date</code> dài hơn ở token refresh kế tiếp</td></tr>
+        <tr><td>Thu hồi (Revoke)</td><td><span class="badge post">POST</span> <code>/api/licenses/{id}/revoke</code> <code>{Reason}</code></td><td><code>Active</code> → bị ép về <code>Inactive</code>; bắt buộc có <code>Reason</code></td><td><code>introspect</code> trả về <code>isRevoked=true</code> → SDK state <code>Revoked</code></td></tr>
+        <tr><td>Kích hoạt lại (Reactivate)</td><td><span class="badge post">POST</span> <code>/api/licenses/{id}/reactivate</code></td><td><code>Inactive</code> → bị ép về <code>Active</code></td><td>Lần <code>/verify</code> kế tiếp thành công trở lại</td></tr>
+        <tr><td>Chuyển nhượng (Transfer)</td><td><span class="badge post">POST</span> <code>/api/licenses/{id}/transfer</code> <code>{TargetStoreId}</code></td><td>Active/Inactive; store đích phải cùng org</td><td>Không ảnh hưởng trực tiếp tới SDK trừ khi store đích có settings override khác</td></tr>
+        <tr><td>Đổi giới hạn thiết bị/ngày hết hạn/field chung</td><td><span class="badge put">PUT</span> <code>/api/licenses</code> <code>LicenseModel</code></td><td>Có diff và ghi change-log</td><td><code>max_device</code>/<code>exp_date</code> mới ở token phát hành kế tiếp</td></tr>
+        <tr><td>Ép giải phóng thiết bị</td><td><span class="badge post">POST</span> <code>/api/licenses/{id}/devices/release</code> <code>{DeviceId}</code></td><td>Thiết bị phải đang được bind</td><td>Token của thiết bị đó bị thu hồi → SDK instance đó thấy <code>Revoked</code> ở lần introspect kế tiếp; giải phóng 1 slot cho thiết bị khác</td></tr>
+        <tr><td>Thu hồi 1 token cụ thể</td><td><span class="badge post">POST</span> <code>/api/licenses/token/revoke</code></td><td>—</td><td>Giống release thiết bị, nhưng chỉ scope 1 token</td></tr>
+        <tr><td>Xoá hàng loạt</td><td><span class="badge delete">DELETE</span> <code>/api/licenses</code> <code>int[] ids</code></td><td>—</td><td>Mọi token còn tồn đọng rồi sẽ fail introspect (not found/invalid)</td></tr>
+      </table>
+      <p>Mọi thao tác trên đều ghi một dòng vào <code>LicenseChangeLog</code> qua <code>ILicenseChangeLogService</code> — audit trail để admin xem lại, độc lập với việc SDK xử lý kết quả ra sao.</p>
+      <p class="cite">LicenseController.cs:59-144 · LicenseApiService.cs:447-1100</p>
+
+      <h2 id="error-codes"><span class="ph">#</span>Bảng mã lỗi → trạng thái SDK (tóm tắt)</h2>
+      <p class="h2-desc">Bảng đầy đủ và các trạng thái sinh cục bộ: <code>docs/error-codes-reference.md</code>. Hai mã liên quan trực tiếp tới luồng trong tài liệu này:</p>
+      <table>
+        <tr><th>Mã backend</th><th>Ngữ cảnh</th><th>Trạng thái SDK</th></tr>
+        <tr><td>16</td><td>khi <code>activate</code> (Phase E)</td><td><code>DeviceLimitReached</code></td></tr>
+        <tr><td>16</td><td>khi tái kiểm tra định kỳ (Phase F)</td><td><code>Revoked</code> — cùng mã, khác ý nghĩa tuỳ ngữ cảnh</td></tr>
+        <tr><td>17</td><td>chỉ khi <code>deactivate()</code> tự gọi release</td><td>coi như thành công (đã release từ trước)</td></tr>
+      </table>
+
+      <h2 id="security"><span class="ph">!</span>Ghi chú bảo mật &amp; phân quyền</h2>
+      <div class="note danger">
+        <span class="ic">&#9888;</span>
+        <div class="note-body">
+          <b>Không tìm thấy cơ chế xác thực/phân quyền nào ở cả 2 bề mặt trong repo này</b>
+          Tìm kiếm toàn repo chỉ thấy <code>app.UseAuthorization()</code> được wire
+          (<code>CommonStartup.cs:69</code>) nhưng <b>không có</b> <code>AddAuthentication</code>,
+          không có JWT bearer scheme, và không có attribute <code>[Authorize]</code> ở bất kỳ đâu
+          trong <code>Presentation/Web.Api</code> — kể cả <code>LicenseController</code> (các endpoint
+          admin create/revoke/renew/transfer ở Phase B và Phase G). Ở tầng ASP.NET, endpoint admin
+          và endpoint public của SDK đều không được xác thực như nhau. Nếu Dcorp có kiểm soát truy
+          cập admin, nó phải được thực thi ở tầng ngoài (API gateway, giới hạn mạng nội bộ/VPN, hoặc
+          đăng nhập ở front-end mà repo này không implement) — không tìm thấy trong chính
+          <code>skyapp-api</code>. Cần xác nhận lại đây là chủ đích trước khi coi admin API là an
+          toàn để public ra ngoài mạng tin cậy.
+        </div>
+      </div>
+      <div class="note ok">
+        <span class="ic">&#10003;</span>
+        <div class="note-body">
+          <b>Cái gì <i>thực sự</i> được bảo vệ</b>
+          SDK không bao giờ tự tin vào response từ mạng — mọi token đều được xác minh cục bộ dựa trên
+          key đã nhúng sẵn trong app lúc build (Phase D), và việc bind theo device-id (claim
+          <code>did</code>) ngăn một token bị lộ hoạt động trên máy khác. Điểm yếu nằm hoàn toàn ở
+          phía phân quyền admin-API, không phải ở mô hình tin cậy phía client.
+        </div>
+      </div>
+
+      <h2 id="sources"><span class="ph">§</span>Trích dẫn nguồn</h2>
+      <table>
+        <tr><th>Repo</th><th>File</th><th>Dùng để chứng minh</th></tr>
+        <tr><td>skyapp-api</td><td><code>Presentation/Web.Api/Controllers/LicenseController.cs:43-144</code></td><td>Endpoint admin (create/renew/revoke/reactivate/transfer/update/delete/release-device/token-revoke)</td></tr>
+        <tr><td>skyapp-api</td><td><code>Presentation/Web.Api/Services/Licenses/LicenseApiService.cs:227,384-534,826-1100</code></td><td>Logic create/verify/find/release/settings, công thức thời hạn token, ghi change-log</td></tr>
+        <tr><td>skyapp-api</td><td><code>Libraries/Core/Domain/Licenses/LicenseStatus.cs:1-15</code></td><td>Enum trạng thái (Deleted/Draft/Inactive/Active) và LicenseTypeEnum</td></tr>
+        <tr><td>skyapp-api</td><td><code>Presentation/Web.Api/Models/Licenses/LicenseModel.cs:91-121</code>, <code>LicenseSettingModel.cs:6-13</code></td><td>Field DTO create, field DTO settings</td></tr>
+        <tr><td>skyapp-api</td><td><code>Libraries/Service/LicenseSigningKeys/TokenSigningService.cs:54-77,113,117</code></td><td>Phát hành JWT: thuật toán, claims, kid</td></tr>
+        <tr><td>skyapp-api</td><td><code>Presentation/Web.Api/Controllers/LicenseSettingController.cs:12,22-34</code></td><td>Endpoint settings anonymous</td></tr>
+        <tr><td>skyapp-api</td><td><code>Presentation/Web.Framework/Infrastructure/CommonStartup.cs:41,69</code></td><td>Mặc định JSON casing, middleware auth (có wire nhưng chưa cấu hình)</td></tr>
+        <tr><td>skylicense-core-sdk</td><td><code>core/src/commonMain/kotlin/com/dcorp/licensecore/LicenseClient.kt</code></td><td>Facade public activate/checkNow/deactivate/restore</td></tr>
+        <tr><td>skylicense-core-sdk</td><td><code>core/src/commonMain/kotlin/com/dcorp/licensecore/internal/LicenseVerifyHandler.kt</code>, <code>LicenseRecheckLogic.kt</code></td><td>Logic verify-rồi-lưu-cache và recheck/offline-grace</td></tr>
+        <tr><td>skylicense-core-sdk</td><td><code>core/src/commonMain/kotlin/com/dcorp/licensecore/LicenseConfig.kt</code></td><td>trustedSigningKeys, orgId, appSalt</td></tr>
+        <tr><td>skylicense-core-sdk</td><td><code>docs/integration-guide-windows.md</code>, <code>docs/error-codes-reference.md</code>, <code>docs/license-lifecycle-and-offline-grace.md</code></td><td>Cách dùng Windows ABI, bảng mã lỗi, sơ đồ chuyển trạng thái (docs hiện có mà trang này bổ sung)</td></tr>
+      </table>
+      <div class="note warn">
+        <span class="ic">&#9888;</span>
+        <div class="note-body"><b>Ghi chú về docs hiện có trong skyapp-api</b> <code>docs/license-master-types.md</code> và các docs cùng thư mục trong repo đó có chỗ đã lỗi thời so với code hiện tại (vd ghi <code>MaxLifeTimeYear</code> = 5 trong khi hằng số trong code hiện là 50, <code>LicenseDefaults.cs:14</code>) — trang này được dựng từ mã nguồn thật, không dựa vào các docs đó.</div>
+      </div>
+    </div>
+
+    <footer class="doc-footer">skylicense-core-sdk · docs/license-lifecycle-admin-to-windows-sdk-flow.vi.html · generated 2026-10-14</footer>
+  </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+    securityLevel: 'loose',
+  });
+
+  var tocLinks = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var sections = tocLinks.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); }).filter(Boolean);
+  var railLinks = Array.prototype.slice.call(document.querySelectorAll('.rail a'));
+
+  function onScroll() {
+    var pos = window.scrollY + 120;
+    var current = sections[0];
+    sections.forEach(function (s) { if (s.offsetTop <= pos) current = s; });
+    tocLinks.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + current.id); });
+    railLinks.forEach(function (a) {
+      var id = a.getAttribute('href').slice(1);
+      var idx = sections.findIndex(function (s) { return s.id === id; });
+      var curIdx = sections.findIndex(function (s) { return s.id === current.id; });
+      a.classList.toggle('done', idx <= curIdx && idx >= 2);
+    });
+  }
+  document.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+</script>
+</body>
+</html>

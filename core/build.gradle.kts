@@ -16,7 +16,7 @@ kotlin {
 
     android {
         namespace = "com.dcorp.licensecore"
-        compileSdk = 36
+        compileSdk = 37
         minSdk = 24
         withHostTest {}
         // `consumerProguardFiles(...)` is not a recognized property on this AGP 9 KMP

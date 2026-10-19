@@ -7,7 +7,7 @@ serialization = "1.11.0"
 ktor = "3.6.0"
 cryptography = "0.6.0"
 androidx-core-ktx = "1.19.1"
-kover = "0.9.1"
+kover = "0.9.11"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }

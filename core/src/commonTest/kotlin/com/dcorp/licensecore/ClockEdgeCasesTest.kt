@@ -5,6 +5,7 @@ import com.dcorp.licensecore.api.LicenseHttpClientFactory
 import com.dcorp.licensecore.cache.CachedLicenseRecord
 import com.dcorp.licensecore.cache.LicenseCacheRepository
 import com.dcorp.licensecore.device.DeviceIdHasher
+import com.dcorp.licensecore.testsupport.FixedDeviceAboutProvider
 import com.dcorp.licensecore.testsupport.FixedDeviceIdProvider
 import com.dcorp.licensecore.testsupport.InMemorySecureStorage
 import com.dcorp.licensecore.testsupport.TestClock
@@ -47,6 +48,7 @@ class ClockEdgeCasesTest {
         val client = LicenseClient(
             config = config,
             deviceIdProvider = FixedDeviceIdProvider(rawId),
+            deviceAboutProvider = FixedDeviceAboutProvider(),
             api = LicenseApiService(LicenseHttpClientFactory.create(engine, config), config),
             verifier = LicenseTokenVerifier(config.trustedSigningKeys),
             cache = cache,
@@ -81,6 +83,7 @@ class ClockEdgeCasesTest {
         val client = LicenseClient(
             config = config,
             deviceIdProvider = FixedDeviceIdProvider(rawId),
+            deviceAboutProvider = FixedDeviceAboutProvider(),
             api = LicenseApiService(LicenseHttpClientFactory.create(engine, config), config),
             verifier = LicenseTokenVerifier(config.trustedSigningKeys),
             cache = cache,

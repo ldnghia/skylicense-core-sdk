@@ -1,14 +1,17 @@
 package com.dcorp.licensecore.platform
 
-import kotlinx.cinterop.ByteVar
-import kotlinx.cinterop.allocArrayOf
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
-import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.ptr
+import kotlinx.cinterop.value
+import platform.CoreFoundation.CFDictionaryRef
+import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFTypeRefVar
+import platform.CoreFoundation.kCFBooleanTrue
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.NSData
 import platform.Foundation.NSMutableDictionary
-import platform.Foundation.create
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.SecItemDelete
@@ -30,59 +33,65 @@ import platform.Security.kSecValueData
  * synced to iCloud, not migrated by a device backup/restore onto a different device - matches
  * the `did` claim check in `LicenseTokenVerifier`, which would reject a copied token anyway).
  *
- * UNVERIFIED: Kotlin/Native iOS targets cannot be compiled on Windows under any configuration -
- * this file has never been built. It follows the well-established `NSMutableDictionary` +
- * `CFBridgingRelease` Keychain wrapper pattern used by other Kotlin Multiplatform libraries, but
- * exact `kSecXxx` constant types are a known source of first-try compile errors in Kotlin/Native
- * Security interop - expect to fix this up on a real macOS host (Phase 4's own plan already
- * flags a "spike" step for exactly this).
+ * Builds queries as `NSMutableDictionary` for ergonomics, bridges to `CFDictionaryRef` only at
+ * the `SecItemXxx` call boundary (see [CfBridging]). Built and verified against a real Kotlin/Native
+ * iOS compile on 2026-10-14.
  */
+@OptIn(ExperimentalForeignApi::class)
 internal class KeychainSecureStorage(private val service: String) : SecureStorage {
 
     override suspend fun get(key: String): ByteArray? = memScoped {
         val query = baseQuery(key).apply {
-            setObject(kSecReturnData, forKey = kSecReturnData)
-            setObject(kSecMatchLimitOne, forKey = kSecMatchLimit)
+            setObject(kCFBooleanTrue.asNSNumber(), forKey = kSecReturnData.asNSString())
+            setObject(kSecMatchLimitOne.asNSString(), forKey = kSecMatchLimit.asNSString())
         }
-        val result = alloc<CFTypeRefVar>()
-        val status = SecItemCopyMatching(query, result.ptr)
-        if (status != errSecSuccess) return@memScoped null
-        val data = CFBridgingRelease(result.value) as? NSData ?: return@memScoped null
-        data.toByteArray()
+        val cfQuery = query.asCFDictionary()
+        try {
+            val result = alloc<CFTypeRefVar>()
+            val status = SecItemCopyMatching(cfQuery, result.ptr)
+            if (status != errSecSuccess) return@memScoped null
+            val data = CFBridgingRelease(result.value) as? NSData ?: return@memScoped null
+            data.toByteArray()
+        } finally {
+            CFRelease(cfQuery)
+        }
     }
 
     override suspend fun put(key: String, bytes: ByteArray) {
         val data = bytes.toNSData()
-        val found = SecItemCopyMatching(baseQuery(key), null) == errSecSuccess
+        val found = withCfDictionary(baseQuery(key)) { SecItemCopyMatching(it, null) } == errSecSuccess
         if (found) {
-            val update = NSMutableDictionary().apply { setObject(data, forKey = kSecValueData) }
-            SecItemUpdate(baseQuery(key), update)
+            val update = NSMutableDictionary().apply { setObject(data, forKey = kSecValueData.asNSString()) }
+            withCfDictionary(baseQuery(key)) { query -> withCfDictionary(update) { SecItemUpdate(query, it) } }
         } else {
             val insert = baseQuery(key).apply {
-                setObject(data, forKey = kSecValueData)
-                setObject(kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly, forKey = kSecAttrAccessible)
+                setObject(data, forKey = kSecValueData.asNSString())
+                setObject(
+                    kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly.asNSString(),
+                    forKey = kSecAttrAccessible.asNSString(),
+                )
             }
-            SecItemAdd(insert, null)
+            withCfDictionary(insert) { SecItemAdd(it, null) }
         }
     }
 
     override suspend fun remove(key: String) {
-        SecItemDelete(baseQuery(key))
+        withCfDictionary(baseQuery(key)) { SecItemDelete(it) }
     }
 
     private fun baseQuery(key: String): NSMutableDictionary = NSMutableDictionary().apply {
-        setObject(kSecClassGenericPassword, forKey = kSecClass)
-        setObject(service, forKey = kSecAttrService)
-        setObject(key, forKey = kSecAttrAccount)
+        setObject(kSecClassGenericPassword.asNSString(), forKey = kSecClass.asNSString())
+        setObject(service, forKey = kSecAttrService.asNSString())
+        setObject(key, forKey = kSecAttrAccount.asNSString())
     }
+}
 
-    private fun ByteArray.toNSData(): NSData = memScoped {
-        NSData.create(bytes = allocArrayOf(this@toNSData), length = this@toNSData.size.toULong())
-    }
-
-    private fun NSData.toByteArray(): ByteArray {
-        val size = length.toInt()
-        val bytesPtr = bytes?.reinterpret<ByteVar>() ?: return ByteArray(0)
-        return ByteArray(size) { i -> bytesPtr[i] }
+@OptIn(ExperimentalForeignApi::class)
+private inline fun <T> withCfDictionary(dict: NSMutableDictionary, block: (CFDictionaryRef) -> T): T {
+    val cfDict = dict.asCFDictionary()
+    try {
+        return block(cfDict)
+    } finally {
+        CFRelease(cfDict)
     }
 }

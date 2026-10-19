@@ -8,6 +8,7 @@ public actual fun createPlatformModule(context: PlatformContext, config: License
     return PlatformModule(
         storage = KeystoreSecureStorage(context.androidContext, keyAlias),
         deviceIdProvider = AndroidDeviceIdProvider(context.androidContext),
+        deviceAboutProvider = AndroidDeviceAboutProvider(),
         httpEngine = AndroidHttpEngineFactory.create(config.certificatePins),
     )
 }

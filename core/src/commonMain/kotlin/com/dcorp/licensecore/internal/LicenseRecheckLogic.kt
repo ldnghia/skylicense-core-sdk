@@ -9,6 +9,7 @@ import com.dcorp.licensecore.cache.CachedLicenseRecord
 import com.dcorp.licensecore.cache.LicenseCacheRepository
 import com.dcorp.licensecore.clearsCache
 import com.dcorp.licensecore.mapBusinessError
+import com.dcorp.licensecore.platform.DeviceAboutProvider
 import com.dcorp.licensecore.policy.ClockRollbackGuard
 import com.dcorp.licensecore.policy.OfflineGracePolicy
 import com.dcorp.licensecore.token.LicenseTokenClaims
@@ -26,6 +27,7 @@ internal class LicenseRecheckLogic(
     private val cache: LicenseCacheRepository,
     private val clock: LicenseClock,
     private val verifyHandler: LicenseVerifyHandler,
+    private val deviceAboutProvider: DeviceAboutProvider,
 ) {
     suspend fun recheck(record: CachedLicenseRecord, deviceId: String): LicenseState {
         val now = clock.nowEpochSeconds()
@@ -49,7 +51,7 @@ internal class LicenseRecheckLogic(
                 if (state.clearsCache()) cache.clear()
                 state
             }
-            is LicenseApiOutcome.TransportError -> handleOffline(record, claims, tampered, now, nextMaxObserved)
+            is LicenseApiOutcome.TransportError -> handleOffline(record, claims, tampered, now, nextMaxObserved, outcome.message)
         }
     }
 
@@ -73,7 +75,9 @@ internal class LicenseRecheckLogic(
         val remainingSeconds = claims.expiresEpochSeconds - now
         val needsRefresh = introspection.isExpired || remainingSeconds < record.checkIntervalMinutes * 60L
         if (needsRefresh) {
-            val outcome = api.verify(claims.licenseKey, deviceId)
+            // deviceName = null on a background refresh - never overwrite an admin-set label the
+            // caller didn't just supply; deviceAbout is cheap to recollect and kept fresh every time.
+            val outcome = api.verify(claims.licenseKey, deviceId, null, deviceAboutProvider.deviceAbout())
             return verifyHandler.handle(outcome, deviceId, isRefresh = true)
         }
 
@@ -87,15 +91,16 @@ internal class LicenseRecheckLogic(
         tampered: Boolean,
         now: Long,
         nextMaxObserved: Long,
+        transportDetail: String,
     ): LicenseState {
-        if (tampered) return LicenseState.NetworkRequired
+        if (tampered) return LicenseState.NetworkRequired("clock rollback detected")
 
         return when (val decision = OfflineGracePolicy.decide(record.allowOffline, now, claims.expiresEpochSeconds)) {
             is OfflineGracePolicy.Decision.RemainOffline -> {
                 cache.save(record.copy(maxObservedEpochSeconds = nextMaxObserved))
                 LicenseState.Valid(record.info, LicenseState.Valid.Mode.Offline(decision.graceUntilEpochSeconds))
             }
-            OfflineGracePolicy.Decision.RequireOnline -> LicenseState.NetworkRequired
+            OfflineGracePolicy.Decision.RequireOnline -> LicenseState.NetworkRequired(transportDetail)
         }
     }
 }

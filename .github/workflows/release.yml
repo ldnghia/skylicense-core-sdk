@@ -41,8 +41,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew :core:assembleLicenseCoreReleaseXCFramework
       - name: Import Apple Distribution identity (if configured)
-        if: ${{ secrets.APPLE_DISTRIBUTION_IDENTITY != '' }}
-        run: echo "APPLE_IDENTITY=${{ secrets.APPLE_DISTRIBUTION_IDENTITY }}" >> "$GITHUB_ENV"
+        env:
+          APPLE_DISTRIBUTION_IDENTITY: ${{ secrets.APPLE_DISTRIBUTION_IDENTITY }}
+        run: echo "APPLE_IDENTITY=${APPLE_DISTRIBUTION_IDENTITY}" >> "$GITHUB_ENV"
       - id: package
         run: |
           version="${GITHUB_REF_NAME#v}"

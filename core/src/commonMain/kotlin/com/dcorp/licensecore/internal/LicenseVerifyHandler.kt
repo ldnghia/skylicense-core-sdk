@@ -29,7 +29,7 @@ internal class LicenseVerifyHandler(
                 if (state.clearsCache()) cache.clear()
                 state
             }
-            is LicenseApiOutcome.TransportError -> LicenseState.NetworkRequired
+            is LicenseApiOutcome.TransportError -> LicenseState.NetworkRequired(outcome.message)
         }
     }
 

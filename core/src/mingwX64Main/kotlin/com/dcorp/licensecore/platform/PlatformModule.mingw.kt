@@ -7,6 +7,7 @@ public actual fun createPlatformModule(context: PlatformContext, config: License
     return PlatformModule(
         storage = DpapiSecureStorage(store),
         deviceIdProvider = WindowsDeviceIdProvider(store),
+        deviceAboutProvider = WindowsDeviceAboutProvider(),
         httpEngine = WinHttpEngineFactory.create(config.certificatePins),
     )
 }

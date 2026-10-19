@@ -4,6 +4,7 @@ import com.dcorp.licensecore.api.LicenseApiService
 import com.dcorp.licensecore.api.LicenseHttpClientFactory
 import com.dcorp.licensecore.cache.LicenseCacheRepository
 import com.dcorp.licensecore.device.DeviceIdHasher
+import com.dcorp.licensecore.testsupport.FixedDeviceAboutProvider
 import com.dcorp.licensecore.testsupport.FixedDeviceIdProvider
 import com.dcorp.licensecore.testsupport.InMemorySecureStorage
 import com.dcorp.licensecore.testsupport.TestClock
@@ -39,6 +40,7 @@ class LicenseClientActivateTest {
         return LicenseClient(
             config = config,
             deviceIdProvider = FixedDeviceIdProvider("raw-fixed"),
+            deviceAboutProvider = FixedDeviceAboutProvider(),
             api = LicenseApiService(http, config),
             verifier = LicenseTokenVerifier(config.trustedSigningKeys),
             cache = LicenseCacheRepository(storage),
@@ -98,6 +100,7 @@ class LicenseClientActivateTest {
         val restored = LicenseClient(
             config = LicenseConfig("https://license.test", 1, "salt", mapOf(signer.kid to signer.publicKeyPem())),
             deviceIdProvider = FixedDeviceIdProvider("raw-fixed"),
+            deviceAboutProvider = FixedDeviceAboutProvider(),
             api = LicenseApiService(LicenseHttpClientFactory.create(MockEngine { jsonResponse("{}") }, LicenseConfig("https://license.test", 1, "salt", emptyMap())), LicenseConfig("https://license.test", 1, "salt", emptyMap())),
             verifier = LicenseTokenVerifier(mapOf(signer.kid to signer.publicKeyPem())),
             cache = LicenseCacheRepository(storage),

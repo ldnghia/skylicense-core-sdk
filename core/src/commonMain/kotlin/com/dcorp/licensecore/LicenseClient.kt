@@ -7,6 +7,7 @@ import com.dcorp.licensecore.cache.LicenseCacheRepository
 import com.dcorp.licensecore.device.DeviceIdHasher
 import com.dcorp.licensecore.internal.LicenseRecheckLogic
 import com.dcorp.licensecore.internal.LicenseVerifyHandler
+import com.dcorp.licensecore.platform.DeviceAboutProvider
 import com.dcorp.licensecore.platform.DeviceIdProvider
 import com.dcorp.licensecore.scheduler.LicenseRecheckScheduler
 import com.dcorp.licensecore.token.LicenseTokenResult
@@ -24,6 +25,7 @@ import kotlinx.coroutines.sync.withLock
 public class LicenseClient internal constructor(
     private val config: LicenseConfig,
     private val deviceIdProvider: DeviceIdProvider,
+    private val deviceAboutProvider: DeviceAboutProvider,
     private val api: LicenseApiService,
     private val verifier: LicenseTokenVerifier,
     private val cache: LicenseCacheRepository,
@@ -31,7 +33,7 @@ public class LicenseClient internal constructor(
 ) {
     private val mutex = Mutex()
     private val verifyHandler = LicenseVerifyHandler(api, verifier, cache, clock)
-    private val recheckLogic = LicenseRecheckLogic(api, verifier, cache, clock, verifyHandler)
+    private val recheckLogic = LicenseRecheckLogic(api, verifier, cache, clock, verifyHandler, deviceAboutProvider)
     private val scheduler = LicenseRecheckScheduler(
         intervalMinutes = { currentIntervalMinutes },
         isNetworkRequired = { _state.value is LicenseState.NetworkRequired },
@@ -51,17 +53,25 @@ public class LicenseClient internal constructor(
     public suspend fun deviceId(): String = DeviceIdHasher.hash(deviceIdProvider.rawDeviceId(), config.appSalt)
 
     /** Activates by license key: calls `verify` (which auto-binds this device), verifies the
-     *  returned token locally, and persists it on success. */
-    public suspend fun activate(licenseKey: String): LicenseState = mutex.withLock {
+     *  returned token locally, and persists it on success. [deviceName] is an optional
+     *  caller-chosen label (e.g. "Quầy thu ngân 1") the SDK never fills in on its own - purely for
+     *  an admin to recognize this device later; a technical `deviceAbout` (OS, model...) is always
+     *  collected automatically alongside it. */
+    public suspend fun activate(licenseKey: String, deviceName: String? = null): LicenseState = mutex.withLock {
         val id = deviceId()
-        publish(verifyHandler.handle(api.verify(licenseKey, id), id, isRefresh = false))
+        val state = publish(verifyHandler.handle(api.verify(licenseKey, id, deviceName, deviceAboutProvider.deviceAbout()), id, isRefresh = false))
+        syncIntervalFromCache()
+        state
     }
 
     /** Activates without a known license key: calls `find`, which claims a free slot on the
-     *  soonest-expiring eligible license for this store/app/product. */
-    public suspend fun activateForStore(storeId: Int, appId: Int? = null, accProductId: Int? = null): LicenseState = mutex.withLock {
+     *  soonest-expiring eligible license for this store/app/product. See [activate] for
+     *  [deviceName]'s meaning. */
+    public suspend fun activateForStore(storeId: Int, appId: Int? = null, accProductId: Int? = null, deviceName: String? = null): LicenseState = mutex.withLock {
         val id = deviceId()
-        publish(verifyHandler.handle(api.find(appId, accProductId, storeId, id), id, isRefresh = false))
+        val state = publish(verifyHandler.handle(api.find(appId, accProductId, storeId, id, deviceName, deviceAboutProvider.deviceAbout()), id, isRefresh = false))
+        syncIntervalFromCache()
+        state
     }
 
     /** Imports a token issued out-of-band (admin-mediated offline activation) without calling the
@@ -116,7 +126,12 @@ public class LicenseClient internal constructor(
     public suspend fun checkNow(): LicenseState = mutex.withLock {
         val record = cache.load() ?: return@withLock publish(LicenseState.Unlicensed)
         currentIntervalMinutes = record.checkIntervalMinutes
-        publish(recheckLogic.recheck(record, deviceId()))
+        val state = publish(recheckLogic.recheck(record, deviceId()))
+        // recheck() may have refreshed the token with a new checkIntervalMinutes (settings changed
+        // server-side) - re-sync so the scheduler's *next* tick uses it immediately instead of
+        // waiting one more full interval for the staleness to self-correct.
+        syncIntervalFromCache()
+        state
     }
 
     /** Releases this device's slot and clears the cache. A transport failure leaves the current
@@ -174,5 +189,13 @@ public class LicenseClient internal constructor(
         _state.value = state
         listeners.forEach { it.onStateChanged(state) }
         return state
+    }
+
+    /** Re-reads [currentIntervalMinutes] from the just-saved cache record - without this, a fresh
+     *  [activate]/[activateForStore] leaves the scheduler on its [currentIntervalMinutes] default
+     *  (60) until the next [restore] or [checkNow], ignoring whatever checkIntervalMinutes the
+     *  server just returned for up to a full default interval. */
+    private suspend fun syncIntervalFromCache() {
+        cache.load()?.let { currentIntervalMinutes = it.checkIntervalMinutes }
     }
 }

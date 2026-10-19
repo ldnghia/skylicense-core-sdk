@@ -9,6 +9,7 @@ public actual fun createPlatformModule(context: PlatformContext, config: License
     return PlatformModule(
         storage = KeychainSecureStorage(service),
         deviceIdProvider = IosDeviceIdProvider(service),
+        deviceAboutProvider = IosDeviceAboutProvider(),
         httpEngine = DarwinHttpEngineFactory.create(config.certificatePins),
     )
 }

@@ -19,11 +19,23 @@ import kotlinx.coroutines.CancellationException
  */
 internal class LicenseApiService(private val http: HttpClient, private val config: LicenseConfig) {
 
-    suspend fun verify(licenseKey: String, deviceId: String): LicenseApiOutcome<VerifyLicenseResponseDto> =
-        post("verify", VerifyLicenseRequestDto(licenseKey, deviceId))
+    suspend fun verify(
+        licenseKey: String,
+        deviceId: String,
+        deviceName: String? = null,
+        deviceAbout: String? = null,
+    ): LicenseApiOutcome<VerifyLicenseResponseDto> =
+        post("verify", VerifyLicenseRequestDto(licenseKey, deviceId, deviceName, deviceAbout))
 
-    suspend fun find(appId: Int?, accProductId: Int?, storeId: Int, deviceId: String): LicenseApiOutcome<VerifyLicenseResponseDto> =
-        post("find", FindLicenseRequestDto(config.orgId, appId, accProductId, storeId, deviceId))
+    suspend fun find(
+        appId: Int?,
+        accProductId: Int?,
+        storeId: Int,
+        deviceId: String,
+        deviceName: String? = null,
+        deviceAbout: String? = null,
+    ): LicenseApiOutcome<VerifyLicenseResponseDto> =
+        post("find", FindLicenseRequestDto(config.orgId, appId, accProductId, storeId, deviceId, deviceName, deviceAbout))
 
     suspend fun release(licenseId: Int, deviceId: String): LicenseApiOutcome<Unit> = transportSafe {
         val ack: ApiEnvelopeAck = http.post("${config.normalizedBaseUrl}/api/licenses/$licenseId/devices/release") {
